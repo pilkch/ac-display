@@ -1,0 +1,10 @@
+CMakeFiles
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+ac-display
+output
+unit_tests
+
+/configuration.json
