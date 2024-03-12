@@ -4,6 +4,7 @@
 
 #include "ac_display.h"
 #include "util.h"
+#include "web_server.h"
 
 // Enable this to turn on a debug mode where we don't read from the AC UDP socket, and instead just cycle the RPM and speed up and down for testing purposes
 //#define DEBUG_SINE_WAVE
@@ -34,6 +35,11 @@ bool RunServer(const application::cSettings& settings)
   }
 #endif
 
+  // Now run the web server
+  cWebServer webServer;
+  const bool result = webServer.Run(settings.GetHTTPSHost(), settings.GetHTTPSPort(), settings.GetHTTPSPrivateKey(), settings.GetHTTPSPublicCert());
+
+  std::cout<<"Shutting down server"<<std::endl;
 
   return false;
 }

@@ -50,9 +50,28 @@ python .\pyproxy-forward-ac-udp-to-linux.py -d 192.168.0.2:9997 -v
 ```
 ### On Linux
 
-1. Set up a configuration.json file
-2. Run ac-display:
+1. Optionally generate TLS certificates:
+```bash
+openssl genrsa -out server.key 2048
+openssl rsa -in server.key -out server.key
+openssl req -sha256 -new -key server.key -out server.csr -subj '/CN=localhost'
+openssl x509 -req -sha256 -days 365 -in server.csr -signkey server.key -out server.crt
+```
+2. Set up a configuration.json file by copying the example and editing it (Set your source and destination addresses and ports, optionally set the the server.key and server.crt):
+```bash
+cp configuration.json.example configuration.json
+vi configuration.json
+```
+3. Open the port in firewalld (Replace 7080 with your port):
+```bash
+sudo firewall-cmd --permanent --add-port=7080/tcp
+sudo firewall-cmd --reload
+```
+4. Run ac-display:
 ```bash
 ./ac-display
 ```
+5. On any machine go to the HTTP address in a browser (Replace the address and port):  
+`https://192.168.0.49:7080/`
+
 

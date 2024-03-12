@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='UTF-8'/>
+    <title>AC Display</title>
+    <link rel="stylesheet" href="style.css"/>
+  </head>
+  <body>
+    <main class="container">
+      <article class="item">
+        <h3>RPM and Speedometer Gauges</h3>
+        <canvas class="gauge" id="gauges_canvas"></canvas>
+      </article>
+      <article class="item">
+        <h3>F1 RPM Lights</h3>
+        <div>
+          <span class="dot" id="digital_led0" background-color="#bbb"></span>
+          <span class="dot" id="digital_led1" background-color="#bbb"></span>
+          <span class="dot" id="digital_led2" background-color="#bbb"></span>
+          <span class="dot" id="digital_led3" background-color="#bbb"></span>
+          <span class="dot" id="digital_led4" background-color="#bbb"></span>
+          <span class="dot" id="digital_led5" background-color="#bbb"></span>
+          <span class="dot" id="digital_led6" background-color="#bbb"></span>
+          <span class="dot" id="digital_led7" background-color="#bbb"></span>
+        </div>
+        <div>
+          <div>
+            <span class="text_small float-side-by-side" id="digital_lap">Lap 1</span>
+            <span class="text_small float-side-by-side text_right" id="digital_rpm">0 RPM</span>
+          </div>
+          <div>
+            <span class="text_large text_center" id="digital_gear">1</span>
+          </div>
+          <div>
+            <span class="text_small text_center">Gear</span>
+          </div>
+          <div>
+            <span class="text_small float-side-by-side" id="digital_delta">Delta +0.00</span>
+            <span class="text_small float-side-by-side text_right" id="digital_last_lap">Last 0.00</span>
+          </div>
+        </div>
+      </article>
+      <article class="item">
+        <div>
+          test
+        </div>
+      </article>
+      <article class="item">
+        <div>
+          test
+        </div>
+      </article>
+    </main>
+
+    <script src="dial.js"></script>
+    <script src="receive.js"></script>
+  </body>
+</html>
