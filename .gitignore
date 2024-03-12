@@ -4,7 +4,12 @@ cmake_install.cmake
 Makefile
 
 ac-display
+acudp/acudp-*/
+libmicrohttpd/libmicrohttpd-*/
 output
 unit_tests
 
 /configuration.json
+/*.csr
+/*.crt
+/*.key

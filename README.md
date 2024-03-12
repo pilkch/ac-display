@@ -9,6 +9,7 @@
 
 - [libjson-c](https://github.com/json-c/json-c)  
 - [libmicrohttpd](https://www.gnu.org/software/libmicrohttpd/)  
+- [acudp](https://github.com/vpicon/acudp)  
 
 ## Build
 
@@ -16,18 +17,19 @@ Install dependencies:
 
 Ubuntu:
 ```bash
-sudo apt install gcc-c++ cmake json-c-dev libmicrohttpd-dev gtest-dev
+sudo apt install automake autoconf libtool texinfo gcc-c++ cmake json-c-dev gtest-dev
 ```
 
 Fedora:
 ```bash
-sudo dnf install gcc-c++ cmake json-c-devel libmicrohttpd-devel gtest-devel
+sudo dnf install automake autoconf libtool texinfo gcc-c++ cmake json-c-devel gtest-devel
 ```
 
 Build:
 ```bash
+$ (cd acudp && ./build.sh)
 $ cmake .
-$ make -j 4
+$ make -j
 ```
 
 ## Run the Unit Tests
