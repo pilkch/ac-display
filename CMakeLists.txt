@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(ac-display)
 
 file(GLOB_RECURSE sources src/*.cpp)
-file(GLOB_RECURSE sources_test src/ac_display.cpp src/ip_address.cpp src/udp_socket.cpp src/settings.cpp src/util.cpp src/web_server.cpp test/src/*.cpp)
+file(GLOB_RECURSE sources_test src/ac_data.cpp src/ac_display.cpp src/acudp_thread.cpp src/debug_sine_wave_update_thread.cpp src/ip_address.cpp src/settings.cpp src/util.cpp src/web_server.cpp test/src/*.cpp)
 
 # Add the sources to the target
 add_executable(ac-display ${sources})
@@ -54,7 +54,16 @@ target_compile_options(ac-display PUBLIC "${COMPILER_PLATFORM_DEFINES} ${COMPILE
 ###############################################################################
 
 # System microhttpd library
-target_link_libraries(ac-display PUBLIC microhttpd json-c)
+#set(MICROHTTPD_LIBRARY "-lmicrohttpd")
+#find_package(MICROHTTPD REQUIRED)
+
+# Our microhttpd library with websockets enabled
+set(MICROHTTPD_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/output/include")
+set(MICROHTTPD_LIB_DIR "${PROJECT_SOURCE_DIR}/output/lib")
+
+target_include_directories(ac-display SYSTEM PUBLIC ${MICROHTTPD_INCLUDE_DIR})
+target_link_directories(ac-display PUBLIC ${MICROHTTPD_LIB_DIR})
+target_link_libraries(ac-display PUBLIC acudp microhttpd microhttpd_ws json-c)
 
 
 ###############################################################################
@@ -78,10 +87,10 @@ set_target_properties(ac-display PROPERTIES ENABLE_EXPORTS on)
 
 set_property(TARGET unit_tests PROPERTY INCLUDE_DIRECTORIES ${APP_INCLUDE_DIRECTORIES})
 
-target_include_directories(unit_tests SYSTEM PUBLIC ${CURL_INCLUDE_DIR})
-target_link_directories(unit_tests PUBLIC ${CURL_LIB_DIR})
+target_include_directories(unit_tests SYSTEM PUBLIC ${MICROHTTPD_INCLUDE_DIR})
+target_link_directories(unit_tests PUBLIC ${MICROHTTPD_LIB_DIR})
 
-target_link_libraries(unit_tests PUBLIC ${GTEST_BOTH_LIBRARIES} curl json-c)
+target_link_libraries(unit_tests PUBLIC ${GTEST_BOTH_LIBRARIES} acudp microhttpd microhttpd_ws json-c)
 
 target_include_directories(unit_tests PUBLIC
   ${GTEST_INCLUDE_DIRS} # doesn't do anything on Linux

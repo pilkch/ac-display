@@ -28,6 +28,7 @@ sudo dnf install automake autoconf libtool texinfo gcc-c++ cmake json-c-devel gt
 Build:
 ```bash
 $ (cd acudp && ./build.sh)
+$ (cd libmicrohttpd && ./build.sh)
 $ cmake .
 $ make -j
 ```
