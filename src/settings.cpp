@@ -17,6 +17,63 @@
 #include "settings.h"
 #include "util.h"
 
+namespace {
+
+bool JSONParseString(struct json_object* json, const std::string& name, std::string& out_value)
+{
+  out_value.clear();
+
+  struct json_object* obj = json_object_object_get(json, name.c_str());
+  if (obj == nullptr) {
+    std::cerr<<name<<" not found"<<std::endl;
+    return false;
+  }
+
+  enum json_type type = json_object_get_type(obj);
+  if (type != json_type_string) {
+    std::cerr<<name<<" is not a string"<<std::endl;
+    return false;
+  }
+
+  const char* value = json_object_get_string(obj);
+  if (value == nullptr) {
+    std::cerr<<name<<" is not valid"<<std::endl;
+    return false;
+  }
+
+  out_value = value;
+
+  return true;
+}
+
+bool JSONParseUint16(struct json_object* json, const std::string& name, uint16_t& out_value)
+{
+  out_value = 0;
+
+  struct json_object* obj = json_object_object_get(json, name.c_str());
+  if (obj == nullptr) {
+    std::cerr<<name<<" not found"<<std::endl;
+    return false;
+  }
+
+  enum json_type type = json_object_get_type(obj);
+  if (type != json_type_int) {
+    std::cerr<<name<<" is not an int"<<std::endl;
+    return false;
+  }
+
+  const int value = json_object_get_int(obj);
+  if ((value <= 0) || (value > USHRT_MAX)) {
+    std::cerr<<name<<" is not valid"<<std::endl;
+    return false;
+  }
+
+  out_value = value;
+  return true;
+}
+
+}
+
 namespace application {
 
 bool cSettings::LoadFromFile(const std::string& sFilePath)
@@ -46,50 +103,53 @@ bool cSettings::LoadFromFile(const std::string& sFilePath)
       return false;
     }
 
-    // Parse address
+    // Parse acudp address
     {
-      struct json_object* address_obj = json_object_object_get(settings_val, "address");
-      if (address_obj == nullptr) {
-        std::cerr<<"address not found"<<std::endl;
+      std::string value;
+      if (!JSONParseString(settings_val, "acudp_host", value)) {
         return false;
       }
 
-      enum json_type address_type = json_object_get_type(address_obj);
-      if (address_type != json_type_string) {
-        std::cerr<<"address is not a string"<<std::endl;
-        return false;
-      }
-
-      const char* value = json_object_get_string(address_obj);
-      if (value == nullptr) {
-        std::cerr<<"address is not valid"<<std::endl;
-        return false;
-      }
-
-      util::ParseAddress(value, address);
+      util::ParseAddress(value, acudp_host);
     }
 
-    // Parse port
+    // Parse acudp port
     {
-      struct json_object* port_obj = json_object_object_get(settings_val, "port");
-      if (port_obj == nullptr) {
-        std::cerr<<"port not found"<<std::endl;
+      uint16_t value = 0;
+      if (!JSONParseUint16(settings_val, "acudp_port", value)) {
         return false;
       }
 
-      enum json_type port_type = json_object_get_type(port_obj);
-      if (port_type != json_type_int) {
-        std::cerr<<"port is not an int"<<std::endl;
+      acudp_port = value;
+    }
+
+    // Parse https address
+    {
+      std::string value;
+      if (!JSONParseString(settings_val, "https_host", value)) {
         return false;
       }
 
-      const int value = json_object_get_int(port_obj);
-      if ((value <= 0) || (value > USHRT_MAX)) {
-        std::cerr<<"port is not valid"<<std::endl;
+      util::ParseAddress(value, https_host);
+    }
+
+    // Parse https port
+    {
+      uint16_t value = 0;
+      if (!JSONParseUint16(settings_val, "https_port", value)) {
         return false;
       }
 
-      port = value;
+      https_port = value;
+    }
+
+    // Parse https private key and certificate
+    if (!JSONParseString(settings_val, "https_private_key", https_private_key)) {
+      return false;
+    }
+
+    if (!JSONParseString(settings_val, "https_public_cert", https_public_cert)) {
+      return false;
     }
   }
 
@@ -98,13 +158,21 @@ bool cSettings::LoadFromFile(const std::string& sFilePath)
 
 bool cSettings::IsValid() const
 {
-  return (address.IsValid() && (port != 0));
+  return (
+    acudp_host.IsValid() && (acudp_port != 0) &&
+    https_host.IsValid() && (https_port != 0) &&
+    !https_private_key.empty() && !https_public_cert.empty()
+  );
 }
 
 void cSettings::Clear()
 {
-  address.Clear();
-  port = 0;
+  acudp_host.Clear();
+  acudp_port = 0;
+  https_host.Clear();
+  https_port = 0;
+  https_private_key.clear();
+  https_public_cert.clear();
 }
 
 }

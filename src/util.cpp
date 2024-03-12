@@ -1,6 +1,7 @@
 #include <cerrno>
 #include <ctime>
 
+#include <chrono>
 #include <iomanip>
 #include <iostream>
 #include <fstream>
@@ -12,6 +13,34 @@
 #include <unistd.h>
 
 namespace util {
+
+// From: https://stackoverflow.com/a/1157217/1074390
+int msleep(long msec)
+{
+  struct timespec ts;
+  int res;
+
+  if (msec < 0) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  ts.tv_sec = msec / 1000;
+  ts.tv_nsec = (msec % 1000) * 1000000;
+
+  do {
+    res = nanosleep(&ts, &ts);
+  } while (res && errno == EINTR);
+
+  return res;
+}
+
+uint64_t GetTimeMS()
+{
+  const std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+  auto ms = std::chrono::time_point_cast<std::chrono::milliseconds>(now).time_since_epoch().count();
+  return ms;
+}
 
 std::string GetHomeFolder()
 {

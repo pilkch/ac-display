@@ -80,4 +80,12 @@ TEST(Util, TestIPAddress)
     EXPECT_EQ(254, address.octet2);
     EXPECT_EQ(255, address.octet3);
   }
+
+  {
+    // Test ToString
+    EXPECT_STREQ("1.2.3.4", util::ToString(util::cIPAddress(1, 2, 3, 4)).c_str());
+    EXPECT_STREQ("192.168.12.34", util::ToString(util::cIPAddress(192, 168, 12, 34)).c_str());
+    EXPECT_STREQ("252.253.254.255", util::ToString(util::cIPAddress(252, 253, 254, 255)).c_str());
+    EXPECT_STREQ("0.0.0.0", util::ToString(util::cIPAddress(0, 0, 0, 0)).c_str());
+  }
 }

@@ -14,12 +14,20 @@ public:
   bool IsValid() const;
   void Clear();
 
-  const util::cIPAddress& GetIPAddress() const { return address; }
-  uint16_t GetPort() const { return port; }
+  const util::cIPAddress& GetACUDPHost() const { return acudp_host; }
+  uint16_t GetACUDPPort() const { return acudp_port; }
+  const util::cIPAddress& GetHTTPSHost() const { return https_host; }
+  uint16_t GetHTTPSPort() const { return https_port; }
+  const std::string& GetHTTPSPrivateKey() const { return https_private_key; }
+  const std::string& GetHTTPSPublicCert() const { return https_public_cert; }
 
 private:
-  util::cIPAddress address;
-  uint16_t port;
+  util::cIPAddress acudp_host;
+  uint16_t acudp_port;
+  util::cIPAddress https_host;
+  uint16_t https_port;
+  std::string https_private_key;
+  std::string https_public_cert;
 };
 
 }

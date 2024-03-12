@@ -21,6 +21,7 @@ public:
   uint8_t octet3;
 };
 
+std::string ToString(const cIPAddress& address);
 bool ParseAddress(const std::string& text, cIPAddress& out_address);
 
 }

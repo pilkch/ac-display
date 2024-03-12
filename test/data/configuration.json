@@ -1,6 +1,10 @@
 {
   "settings": {
-    "address": "192.168.0.123",
-    "port": 8443
+    "acudp_host": "192.168.0.2",
+    "acudp_port": 9997,
+    "https_host": "192.168.0.3",
+    "https_port": 8443,
+    "https_private_key": "./server.key",
+    "https_public_cert": "./server.crt"
   }
 }

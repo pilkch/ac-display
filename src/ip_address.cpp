@@ -47,6 +47,14 @@ bool cIPAddress::IsValid() const
   );
 }
 
+
+std::string ToString(const cIPAddress& address)
+{
+  std::ostringstream o;
+  o<<int(address.octet0)<<"."<<int(address.octet1)<<"."<<int(address.octet2)<<"."<<int(address.octet3);
+  return o.str();
+}
+
 bool ParseAddress(const std::string& text, cIPAddress& out_address)
 {
   out_address.Clear();
