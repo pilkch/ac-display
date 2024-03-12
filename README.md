@@ -4,8 +4,7 @@
 
 ## Data Flow
 
-
-## Requirements
+## Third Party Libraries
 
 - [libjson-c](https://github.com/json-c/json-c)  
 - [libmicrohttpd](https://www.gnu.org/software/libmicrohttpd/)  
@@ -40,17 +39,26 @@ $ make -j
 $ ./unit_tests
 ```
 
+## Validate Static HTML
+
+```bash
+$ xmllint --noout resources/index.html # Should be no output
+$ echo $? # Should print 0
+```
+
+
 ## Usage
 
 ### On Windows
 
-1. In a git-bash, VSCode terminal, or similar:
+1. Forward the AC UDP traffic to the rest of the network, in a git-bash, VSCode terminal, or similar (Change the IP and port):
 ```bash
 python .\pyproxy-forward-ac-udp-to-linux.py -d 192.168.0.2:9997 -v
 ```
+
 ### On Linux
 
-1. Optionally generate TLS certificates:
+1. Optionally generate self signed certificates for TLS:
 ```bash
 openssl genrsa -out server.key 2048
 openssl rsa -in server.key -out server.key
@@ -64,7 +72,7 @@ vi configuration.json
 ```
 3. Open the port in firewalld (Replace 7080 with your port):
 ```bash
-sudo firewall-cmd --permanent --add-port=7080/tcp
+sudo firewall-cmd --permanent --add-port=7080/udp
 sudo firewall-cmd --reload
 ```
 4. Run ac-display:
