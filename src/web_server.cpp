@@ -8,34 +8,70 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 
+#include <microhttpd.h>
+#include <microhttpd_ws.h>
+
 #include "ac_data.h"
 #include "util.h"
 #include "web_server.h"
 
+const std::string HTML_MIMETYPE = "text/html";
+const std::string CSS_MIMETYPE = "text/css";
+const std::string JAVASCRIPT_MIMETYPE = "text/javascript";
+const std::string SVG_XML_MIMETYPE = "image/svg+xml";
 
-#include <microhttpd.h>
-#include <microhttpd_ws.h>
+class cStaticResource {
+public:
+  void Clear();
 
+  std::string request_path;
+  std::string response_mime_type;
+  std::string response_text;
+};
 
-std::string index_html;
-std::string style_css;
-std::string receive_js;
-std::string dial_js;
-std::string disconnected_icon_svg;
+// Yes, this could have been a map of std::string to std::pair<std::string, std::string>
+std::vector<cStaticResource> static_resources;
 
+bool LoadStaticResource(const std::string& request_path, const std::string& response_mime_type, const std::string& file_path)
+{
+  cStaticResource resource;
 
-#define PAGE_NOT_FOUND \
-  "404 Not Found"
+  const size_t nMaxFileSizeBytes = 20 * 1024;
+  if (!util::ReadFileIntoString(file_path, nMaxFileSizeBytes, resource.response_text)) {
+    std::cerr<<"File \""<<file_path<<"\" not found"<<std::endl;
+    return false;
+  }
 
-#define PAGE_INVALID_WEBSOCKET_REQUEST \
-  "Invalid WebSocket request!"
+  resource.request_path = request_path;
+  resource.response_mime_type = response_mime_type;
 
-#define SVG_XML_MIMETYPE "image/svg+xml"
+  static_resources.push_back(resource);
+
+  return true;
+}
+
+bool LoadStaticResources()
+{
+  static_resources.clear();
+
+  return (
+    LoadStaticResource("/", HTML_MIMETYPE, "./resources/index.html") &&
+    LoadStaticResource("/style.css", CSS_MIMETYPE, "./resources/style.css") &&
+    LoadStaticResource("/receive.js", JAVASCRIPT_MIMETYPE, "./resources/receive.js") &&
+    LoadStaticResource("/dial.js", JAVASCRIPT_MIMETYPE, "./resources/dial.js") &&
+    LoadStaticResource("/disconnected_icon.svg", SVG_XML_MIMETYPE, "./resources/disconnected_icon.svg")
+  );
+}
+
+const std::string PAGE_NOT_FOUND = "404 Not Found";
+const std::string PAGE_INVALID_WEBSOCKET_REQUEST = "Invalid WebSocket request";
+
 
 /**
  * This struct is used to keep the data of a connected chat user.
@@ -1344,38 +1380,30 @@ access_handler (void *cls,
     return MHD_YES;
   }
   *req_cls = NULL;                  /* reset when done */
-  if (0 == strcmp (url, "/"))
-  {
-    /* Default page for visiting the server */
-    struct MHD_Response *response;
-    response = MHD_create_response_from_buffer_static(index_html.length(), index_html.c_str());
-    ret = MHD_queue_response (connection, MHD_HTTP_OK, response);
-    MHD_destroy_response (response);
-  } else if (0 == strcmp(url, "/style.css")) {
-    struct MHD_Response *response;
-    response = MHD_create_response_from_buffer_static(style_css.length(), style_css.c_str());
-    ret = MHD_queue_response (connection, MHD_HTTP_OK, response);
-    MHD_destroy_response (response);
-  } else if (0 == strcmp(url, "/receive.js")) {
-    struct MHD_Response *response;
-    response = MHD_create_response_from_buffer_static(receive_js.length(), receive_js.c_str());
-    ret = MHD_queue_response (connection, MHD_HTTP_OK, response);
-    MHD_destroy_response (response);
-  } else if (0 == strcmp(url, "/dial.js")) {
-    struct MHD_Response *response;
-    response = MHD_create_response_from_buffer_static(dial_js.length(), dial_js.c_str());
-    ret = MHD_queue_response (connection, MHD_HTTP_OK, response);
-    MHD_destroy_response (response);
-  } else if (0 == strcmp(url, "/disconnected_icon.svg")) {
-    std::cout<<"Sending svg response"<<std::endl;
-    struct MHD_Response *response;
-    response = MHD_create_response_from_buffer_static(disconnected_icon_svg.length(), disconnected_icon_svg.c_str());
-    MHD_add_response_header (response, "Content-Type", SVG_XML_MIMETYPE);
-    ret = MHD_queue_response (connection, MHD_HTTP_OK, response);
-    MHD_destroy_response (response);
-  } else if (0 == strcmp (url, "/ACDisplayServerWebSocket")) {
+
+  bool handled = false;
+
+  // Handle static resources
+  if (url[0] == '/') {
+    for (auto&& resource : static_resources) {
+      if (url == resource.request_path) {
+        // This is the requested resource so create a response
+        struct MHD_Response* response = MHD_create_response_from_buffer_static(resource.response_text.length(), resource.response_text.c_str());
+        MHD_add_response_header(response, "Content-Type", resource.response_mime_type.c_str());
+        ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+        MHD_destroy_response(response);
+
+        handled = true;
+
+        break;
+      }
+    }
+  }
+
+  if (!handled) {
+  if (0 == strcmp (url, "/ACDisplayServerWebSocket")) {
     /**
-     * The path for the chat has been accessed.
+     * The path for the websocket updates has been accessed.
      * For a valid WebSocket request, at least five headers are required:
      * 1. "Host: <name>"
      * 2. "Connection: Upgrade"
@@ -1457,26 +1485,18 @@ access_handler (void *cls,
     {
       /* return error page */
       struct MHD_Response *response;
-      response =
-        MHD_create_response_from_buffer_static ( \
-          strlen (PAGE_INVALID_WEBSOCKET_REQUEST),
-          PAGE_INVALID_WEBSOCKET_REQUEST);
-      ret = MHD_queue_response (connection,
-                                MHD_HTTP_BAD_REQUEST,
-                                response);
-      MHD_destroy_response (response);
+      response = MHD_create_response_from_buffer_static(PAGE_INVALID_WEBSOCKET_REQUEST.length(), PAGE_INVALID_WEBSOCKET_REQUEST.c_str());
+      ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+      MHD_destroy_response(response);
     }
-  }
-  else
-  {
+  } else {
     struct MHD_Response *response;
-    response = MHD_create_response_from_buffer_static (strlen (PAGE_NOT_FOUND),
-                                                       PAGE_NOT_FOUND);
-    ret = MHD_queue_response (connection,
-                              MHD_HTTP_NOT_FOUND,
-                              response);
-    MHD_destroy_response (response);
+    response = MHD_create_response_from_buffer_static(PAGE_NOT_FOUND.length(), PAGE_NOT_FOUND.c_str());
+    ret = MHD_queue_response (connection, MHD_HTTP_NOT_FOUND, response);
+    MHD_destroy_response(response);
   }
+  }
+
   return (MHD_Result)ret;
 }
 
@@ -1616,22 +1636,8 @@ bool cREFACTOR_MEWebServer::Close()
 
 bool cWebServer::Run(const util::cIPAddress& host, uint16_t port, const std::string& private_key, const std::string& public_cert)
 {
-  // Load the static resources  
-  const size_t nMaxFileSizeBytes = 20 * 1024;
-  if (!util::ReadFileIntoString("./resources/index.html", nMaxFileSizeBytes, index_html)) {
-    std::cerr<<"File \"./resources/index.html\" not found"<<std::endl;
-    return false;
-  } else if (!util::ReadFileIntoString("./resources/style.css", nMaxFileSizeBytes, style_css)) {
-    std::cerr<<"File \"./resources/style.css\" not found"<<std::endl;
-    return false;
-  } else if (!util::ReadFileIntoString("./resources/receive.js", nMaxFileSizeBytes, receive_js)) {
-    std::cerr<<"File \"./resources/receive.js\" not found"<<std::endl;
-    return false;
-  } else if (!util::ReadFileIntoString("./resources/dial.js", nMaxFileSizeBytes, dial_js)) {
-    std::cerr<<"File \"./resources/dial.js\" not found"<<std::endl;
-    return false;
-  } else if (!util::ReadFileIntoString("./resources/disconnected_icon.svg", nMaxFileSizeBytes, disconnected_icon_svg)) {
-    std::cerr<<"File \"./resources/disconnected_icon.svg\" not found"<<std::endl;
+  // Load the static resources
+  if (!LoadStaticResources()) {
     return false;
   }
 
