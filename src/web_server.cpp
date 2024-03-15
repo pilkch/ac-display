@@ -65,7 +65,8 @@ bool LoadStaticResources()
     LoadStaticResource("/style.css", CSS_MIMETYPE, "./resources/style.css") &&
     LoadStaticResource("/receive.js", JAVASCRIPT_MIMETYPE, "./resources/receive.js") &&
     LoadStaticResource("/dial.js", JAVASCRIPT_MIMETYPE, "./resources/dial.js") &&
-    LoadStaticResource("/disconnected_icon.svg", SVG_XML_MIMETYPE, "./resources/disconnected_icon.svg")
+    LoadStaticResource("/disconnected_icon.svg", SVG_XML_MIMETYPE, "./resources/disconnected_icon.svg") &&
+    LoadStaticResource("/favicon.svg", SVG_XML_MIMETYPE, "./resources/favicon.svg")
   );
 }
 
