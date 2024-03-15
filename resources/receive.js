@@ -8,6 +8,9 @@ window.addEventListener('load', window_onload);
 // This is the main procedure which connects the first socket
 function window_onload(event)
 {
+  // Show the disconnected message, it will be hidden if we connect successfully
+  showErrorDisconnected();
+
   // Determine the base url (for http:// this is ws:// for https:// this must be wss://)
   baseUrl = 'ws' + (window.location.protocol === 'https:' ? 's' : '') + '://' + window.location.host + '/ACDisplayServerWebSocket';
   websocket_connect();
@@ -27,12 +30,17 @@ function websocket_connect()
 // This is the event when the socket has established a connection
 function socket_onopen(event)
 {
+  hideError();
 }
 
 // This is the event when the socket has been closed.
 function socket_onclose(event)
 {
   console.error('WebSocket connection closed: ', event);
+
+  // Show the disconnected message and try connecting again in 1 second
+  showErrorDisconnected();
+  setTimeout(websocket_connect, 1000);
 }
 
 // This is the event when the socket reported an error.
@@ -202,4 +210,19 @@ function socket_onmessage(event)
   } else {
     // We received a binary message
   }
+}
+
+function showErrorDisconnected()
+{
+  var errorElement = document.getElementById("errordiv");
+  errorElement.style.display = 'block';
+
+  var messageElement = document.getElementById("error");
+  messageElement.innerHTML = "Disconnected";
+}
+
+function hideError()
+{
+  var errorElement = document.getElementById("errordiv");
+  errorElement.style.display = 'none';
 }

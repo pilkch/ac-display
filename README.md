@@ -4,12 +4,15 @@
 
 ## Data Flow
 
-## Third Party Libraries
+
+## Third Party Libraries and Resources
 
 - [libjson-c](https://github.com/json-c/json-c)  
 - [libmicrohttpd](https://www.gnu.org/software/libmicrohttpd/)  
 - [acudp](https://github.com/vpicon/acudp)  
 - [pyproxy](https://github.com/rsc-dev/pyproxy/)
+- [Javascript RPM gauge](https://geeksretreat.wordpress.com/2012/04/13/making-a-speedometer-using-html5s-canvas/)
+- [Disconnection Icon](https://www.svgrepo.com/svg/332225/api)
 
 ## Build
 

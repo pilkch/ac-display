@@ -11,11 +11,11 @@ body {
 }
 
 .text_large {
-  font-size: 6vw;
+  font-size: 12vh;
 }
 
 .text_small {
-  font-size: 4vw;
+  font-size: 8vh;
 }
 
 .text_center {
@@ -70,4 +70,34 @@ body {
 .float-side-by-side {
   width: 50%;
   display: inline-block;
-}  
+}
+
+
+.error_message {
+  display: grid;
+  grid-template-areas: 'error_message_icon error_message_text';
+  width: auto;
+  height: auto;
+  left: 3vw;
+  bottom: 3vh;
+  position: fixed;
+  border-radius: 1vw; /* Rounded corners */
+  background-color: #4270b0;
+  padding-left: 0.5vw;
+  padding-right: 0.5vw;
+}
+
+.error_message_icon {
+  grid-area: error_message_icon;
+  width: 7vh;
+  height: 7vh;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.error_message_text {
+  grid-area: error_message_text;
+  display: inline-block;
+  vertical-align: middle;
+  font-size: 6vh;
+}

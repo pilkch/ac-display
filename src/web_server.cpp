@@ -26,6 +26,7 @@ std::string index_html;
 std::string style_css;
 std::string receive_js;
 std::string dial_js;
+std::string disconnected_icon_svg;
 
 
 #define PAGE_NOT_FOUND \
@@ -33,6 +34,8 @@ std::string dial_js;
 
 #define PAGE_INVALID_WEBSOCKET_REQUEST \
   "Invalid WebSocket request!"
+
+#define SVG_XML_MIMETYPE "image/svg+xml"
 
 /**
  * This struct is used to keep the data of a connected chat user.
@@ -1323,7 +1326,7 @@ access_handler (void *cls,
                 size_t *upload_data_size,
                 void **req_cls)
 {
-  std::cout<<"access_handler"<<std::endl;
+  std::cout<<"access_handler "<<url<<std::endl;
   static int aptr;
   struct MHD_Response *response;
   int ret;
@@ -1361,6 +1364,13 @@ access_handler (void *cls,
   } else if (0 == strcmp(url, "/dial.js")) {
     struct MHD_Response *response;
     response = MHD_create_response_from_buffer_static(dial_js.length(), dial_js.c_str());
+    ret = MHD_queue_response (connection, MHD_HTTP_OK, response);
+    MHD_destroy_response (response);
+  } else if (0 == strcmp(url, "/disconnected_icon.svg")) {
+    std::cout<<"Sending svg response"<<std::endl;
+    struct MHD_Response *response;
+    response = MHD_create_response_from_buffer_static(disconnected_icon_svg.length(), disconnected_icon_svg.c_str());
+    MHD_add_response_header (response, "Content-Type", SVG_XML_MIMETYPE);
     ret = MHD_queue_response (connection, MHD_HTTP_OK, response);
     MHD_destroy_response (response);
   } else if (0 == strcmp (url, "/ACDisplayServerWebSocket")) {
@@ -1619,6 +1629,9 @@ bool cWebServer::Run(const util::cIPAddress& host, uint16_t port, const std::str
     return false;
   } else if (!util::ReadFileIntoString("./resources/dial.js", nMaxFileSizeBytes, dial_js)) {
     std::cerr<<"File \"./resources/dial.js\" not found"<<std::endl;
+    return false;
+  } else if (!util::ReadFileIntoString("./resources/disconnected_icon.svg", nMaxFileSizeBytes, disconnected_icon_svg)) {
+    std::cerr<<"File \"./resources/disconnected_icon.svg\" not found"<<std::endl;
     return false;
   }
 
