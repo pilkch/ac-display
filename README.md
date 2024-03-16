@@ -4,7 +4,10 @@
 2. I am not a web designer. I like minimal web pages, but I am no web expert, the web interface is usable but ugly and janky, I know just enough to be dangerous.
 3. Getting this up and running is a bit of a pain and you'll need to know a little bit about networking, good luck!
 
-## Data Flow
+
+![RPM and Speedometer Gauges](/images/latest_rpm_preview.png)
+
+![F1 Style Dash](/images/latest_f1_style_preview.png)
 
 
 ## Third Party Libraries and Resources
@@ -62,7 +65,17 @@ $ echo $? # Should print 0
 | ac-display | Linux | 192.168.0.3 |
 | Monitor or Device | Web Browser (Second monitor/computer/phone/tablet) | 192.168.0.x |
 
+## Data Flow
 
+```mermaid
+flowchart TD
+    AC(Windows Assetto Corsa acs.exe UDP Server 127.0.0.1:9996) --> PY(Windows pyproxy-forward-ac-udp-to-linux.py 192.168.0.2:9997)
+    PY --> AC
+    PY --> DISP(Linux ac-display https://192.168.0.3:8443/)
+    DISP --> PY
+    DISP <--> |Visits https://192.168.0.3:8443/| PHONE(Phone web browser)
+    PHONE <--> |websocket| DISP
+```
 
 ## Usage
 
@@ -72,7 +85,8 @@ On the computer running :
 1. Open file `C:\Program Files (x86)\Steam\steamapps\common\assettocorsa\system\cfg\assetto_corsa.ini` with notepad.
 2. Find line `ENABLE_DEV_APPS=0` and change it to `ENABLE_DEV_APPS=1`
 3. Save the file
-4. Forward the AC UDP traffic to the rest of the network, in a git-bash, VSCode terminal, or similar (Change the IP and port):
+4. Open UDP port 9996 on the Windows firewall, or change the network profile to Private
+5. Forward the AC UDP traffic to the rest of the network, in a git-bash, VSCode terminal, or similar (Change the IP and port):
 ```bash
 python .\pyproxy-forward-ac-udp-to-linux.py -d 192.168.0.2:9997 -v
 ```
@@ -106,3 +120,41 @@ sudo firewall-cmd --reload
 1. Go to the address in a browser (Replace the address and port):  
 `https://192.168.0.3:7080/`
 2. If you are seeing a "Disconnected" message on the page then press F12 and click on "Console" to check if there are any useful error messages
+
+
+<details>
+<summary>Development History</summary>
+
+![](/images/1.png)
+
+![](/images/2.png)
+
+![](/images/3.png)
+
+![](/images/4.png)
+
+![](/images/5.png)
+
+![](/images/6.png)
+
+![](/images/7.png)
+
+![](/images/8.png)
+
+![](/images/9.png)
+
+![](/images/10.png)
+
+![](/images/11.png)
+
+![](/images/12.png)
+
+![](/images/13.png)
+
+![](/images/14.png)
+
+![](/images/15.png)
+
+![](/images/16.png)
+
+</details>
