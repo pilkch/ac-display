@@ -101,3 +101,29 @@ body {
   vertical-align: middle;
   font-size: 6vh;
 }
+
+
+#fullscreen_div {
+  width: auto;
+  height: auto;
+  right: 3vh;
+  bottom: 3vh;
+  position: fixed;
+  border-radius: 1vw; /* Rounded corners */
+  background-color: #7e7e7e;
+  padding-left: 0.5vw;
+  padding-right: 0.5vw;
+}
+
+#fullscreen_button {
+  background-color: #7e7e7e;
+  color: #7e7e7e;
+}
+
+.fullscreen_icon {
+  grid-area: error_message_icon;
+  width: 7vh;
+  height: 7vh;
+  display: inline-block;
+  vertical-align: middle;
+}
