@@ -1,4 +1,4 @@
-/*jslint plusplus: true, sloppy: true, indent: 4 */
+/*jslint plusplus: true, sloppy: true, indent: 2 */
 (function () {
   "use strict";
   // this function is strict...
@@ -230,7 +230,6 @@ function applyDefaultContextSettings(options)
 function drawSmallTickMarks(options, gauge)
 {
   var iTick = 0,
-      gaugeOptions = options.gaugeOptions,
       iTickRad = 0,
       fromX,
       fromY,
@@ -253,8 +252,8 @@ function drawSmallTickMarks(options, gauge)
 
     fromX = options.center.X - (Math.cos(iTickRad) * options.levelRadius);
     fromY = options.center.Y - (Math.sin(iTickRad) * options.levelRadius);
-    toX = options.center.X - (Math.cos(iTickRad) * gaugeOptions.radius);
-    toY = options.center.Y - (Math.sin(iTickRad) * gaugeOptions.radius);
+    toX = options.center.X - (Math.cos(iTickRad) * options.gaugeOptions.radius);
+    toY = options.center.Y - (Math.sin(iTickRad) * options.gaugeOptions.radius);
 
     // Create a line expressed in JSON
     line = createLine(fromX, fromY, toX, toY, (iTick >= gauge.startRedlineDegrees) ? foregroundColourRed : foregroundColourWhite, 3, 1.0);
@@ -267,7 +266,6 @@ function drawSmallTickMarks(options, gauge)
 function drawHalfTickMarks(options, gauge)
 {
   var iTick = 0,
-      gaugeOptions = options.gaugeOptions,
       iTickRad = 0,
       fromX,
       fromY,
@@ -305,7 +303,6 @@ function drawHalfTickMarks(options, gauge)
 function drawLargeTickMarks(options, gauge)
 {
   var iTick = 0,
-        gaugeOptions = options.gaugeOptions,
         iTickRad = 0,
         fromX,
         fromY,
@@ -354,9 +351,8 @@ function drawTextMarkers(options, gauge)
   * 170 degrees.
   */
   var iTick = 0.0,
-      gaugeOptions = options.gaugeOptions,
       iTickToPrint = 0;
-  const textRadius = 0.8 * gaugeOptions.radius;
+  const textRadius = 0.8 * options.gaugeOptions.radius;
 
   applyDefaultContextSettings(options);
 
@@ -496,10 +492,6 @@ function buildOptionsAsJSON(canvas)
     needleBaseRadius: needleBaseRadius,
     needleLength: needleLength,
     gaugeOptions: {
-      center:	{
-        X: centerX,
-        Y: centerY
-      },
       radius: radius
     },
     outerRadius: outerRadius

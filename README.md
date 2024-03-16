@@ -1,6 +1,8 @@
 ## About
 
-
+This is just a proof of concept to show an RPM gauge and some stats from Assetto Corsa, on a second monitor, another computer, a phone, or tablet. The idea would be that the other device sits above your wheel and then you can turn off the in game dash or change the position of the camera to show less dash and more road.<br/>
+I am not a web designer. I like minimal web pages, but I am no web expert, the web interface is usable but ugly and janky, I know just enough to be dangerous.<br/>
+Getting this up and running is a bit of a pain and you'll need to know a little bit about networking, good luck.
 
 ## Data Flow
 
@@ -12,7 +14,9 @@
 - [acudp](https://github.com/vpicon/acudp)  
 - [pyproxy](https://github.com/rsc-dev/pyproxy/)
 - [Javascript RPM gauge](https://geeksretreat.wordpress.com/2012/04/13/making-a-speedometer-using-html5s-canvas/)
-- [Disconnection Icon](https://www.svgrepo.com/svg/332225/api)
+- [Disconnection icon](https://www.svgrepo.com/svg/332225/api)
+- [Fullscreen icon by Automattic, SVG Repo, GPL](https://www.svgrepo.com/svg/335073/fullscreen)
+- [Gauge icon by romzicon, Noun Project, CC BY 3.0](https://thenounproject.com/browse/icons/term/gauge/)
 
 ## Build
 
