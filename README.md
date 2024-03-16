@@ -24,12 +24,12 @@ Install dependencies:
 
 Ubuntu:
 ```bash
-sudo apt install automake autoconf libtool texinfo gcc-c++ cmake json-c-dev gtest-dev
+sudo apt install automake autoconf libtool texinfo gcc-c++ cmake json-c-dev libxml2-dev gtest-dev
 ```
 
 Fedora:
 ```bash
-sudo dnf install automake autoconf libtool texinfo gcc-c++ cmake json-c-devel gtest-devel
+sudo dnf install automake autoconf libtool texinfo gcc-c++ cmake json-c-devel libxml2-devel gtest-devel
 ```
 
 Build:
@@ -86,7 +86,8 @@ sudo firewall-cmd --reload
 ```bash
 ./ac-display
 ```
-5. On any machine go to the HTTP address in a browser (Replace the address and port):  
-`https://192.168.0.49:7080/`
+5. On any machine (Second monitor/computer/phone/tablet) go to the address in a browser (Replace the address and port):  
+`https://192.168.0.3:7080/`
+6. If you are seeing a "Disconnected" message on the page then press F12 and click on "Console" to check if there are any useful error messages.
 
 
