@@ -1,8 +1,8 @@
 ## About
 
-This is just a proof of concept to show an RPM gauge and some stats from Assetto Corsa, on a second monitor, another computer, a phone, or tablet. The idea would be that the other device sits above your wheel and then you can turn off the in game dash or change the position of the camera to show less dash and more road.<br/>
-I am not a web designer. I like minimal web pages, but I am no web expert, the web interface is usable but ugly and janky, I know just enough to be dangerous.<br/>
-Getting this up and running is a bit of a pain and you'll need to know a little bit about networking, good luck.
+1. This is just a proof of concept to show an RPM gauge and some stats from Assetto Corsa, on a second monitor, another computer, a phone, or tablet. The idea would be that the other device sits above your wheel and then you can turn off the in game dash or change the position of the camera to show less dash and more road.
+2. I am not a web designer. I like minimal web pages, but I am no web expert, the web interface is usable but ugly and janky, I know just enough to be dangerous.
+3. Getting this up and running is a bit of a pain and you'll need to know a little bit about networking, good luck!
 
 ## Data Flow
 
@@ -54,16 +54,30 @@ $ echo $? # Should print 0
 ```
 
 
+## IP Addresses
+
+| Machine        | OS           | IP Address  |
+| ------------- | ------------- | ------------- |
+| Assetto Corsa | Windows | 192.168.0.2 |
+| ac-display | Linux | 192.168.0.3 |
+| Monitor or Device | Web Browser (Second monitor/computer/phone/tablet) | 192.168.0.x |
+
+
+
 ## Usage
 
-### On Windows
+### On Assetto Corsa Machine (Windows)
 
-1. Forward the AC UDP traffic to the rest of the network, in a git-bash, VSCode terminal, or similar (Change the IP and port):
+On the computer running :
+1. Open file `C:\Program Files (x86)\Steam\steamapps\common\assettocorsa\system\cfg\assetto_corsa.ini` with notepad.
+2. Find line `ENABLE_DEV_APPS=0` and change it to `ENABLE_DEV_APPS=1`
+3. Save the file
+4. Forward the AC UDP traffic to the rest of the network, in a git-bash, VSCode terminal, or similar (Change the IP and port):
 ```bash
 python .\pyproxy-forward-ac-udp-to-linux.py -d 192.168.0.2:9997 -v
 ```
 
-### On Linux
+### On ac-display Machine (Linux)
 
 1. Optionally generate self signed certificates for TLS:
 ```bash
@@ -86,8 +100,9 @@ sudo firewall-cmd --reload
 ```bash
 ./ac-display
 ```
-5. On any machine (Second monitor/computer/phone/tablet) go to the address in a browser (Replace the address and port):  
+
+### On a Monitor or Device on the Same Network (Second monitor/computer/phone/tablet)
+
+1. Go to the address in a browser (Replace the address and port):  
 `https://192.168.0.3:7080/`
-6. If you are seeing a "Disconnected" message on the page then press F12 and click on "Console" to check if there are any useful error messages.
-
-
+2. If you are seeing a "Disconnected" message on the page then press F12 and click on "Console" to check if there are any useful error messages
