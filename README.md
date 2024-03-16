@@ -123,7 +123,7 @@ sudo firewall-cmd --reload
 
 
 <details>
-<summary>Development History</summary>
+<summary>Development History in Images</summary>
 
 ![](/images/1.png)
 
