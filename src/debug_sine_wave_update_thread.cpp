@@ -35,10 +35,11 @@ void cDebugSineWaveUpdateThread::MainLoop()
     std::cout<<"rpm: "<<rpm<<", speed: "<<speed_kph<<std::endl;
 
     // Update the shared rpm value
-    mutex_ac_data.lock();
-    ac_data.rpm = rpm;
-    ac_data.speed_kmh = speed_kph;
-    mutex_ac_data.unlock();
+    {
+      std::lock_guard<std::mutex> lock(mutex_ac_data);
+      ac_data.rpm = rpm;
+      ac_data.speed_kmh = speed_kph;
+    }
 
     util::msleep(50);
   }

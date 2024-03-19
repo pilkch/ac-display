@@ -81,7 +81,7 @@ void cACUDPThread::MainLoop()
     //print_car_info(car);
 
     // Update the shared rpm value
-    mutex_ac_data.lock();
+    std::lock_guard<std::mutex> lock(mutex_ac_data);
     ac_data.gear = car.gear;
     ac_data.accelerator_0_to_1 = car.gas;
     ac_data.brake_0_to_1 = car.brake;
@@ -92,7 +92,6 @@ void cACUDPThread::MainLoop()
     ac_data.last_lap_ms = car.last_lap;
     ac_data.best_lap_ms = car.best_lap;
     ac_data.lap_count = car.lap_count;
-    mutex_ac_data.unlock();
   }
 }
 

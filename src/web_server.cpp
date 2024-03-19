@@ -21,6 +21,8 @@
 #include "util.h"
 #include "web_server.h"
 
+namespace {
+
 const std::string HTML_MIMETYPE = "text/html";
 const std::string CSS_MIMETYPE = "text/css";
 const std::string JAVASCRIPT_MIMETYPE = "text/javascript";
@@ -75,11 +77,12 @@ bool LoadStaticResources()
 const std::string PAGE_NOT_FOUND = "404 Not Found";
 const std::string PAGE_INVALID_WEBSOCKET_REQUEST = "Invalid WebSocket request";
 
+}
 
 /**
  * This struct is used to keep the data of a connected chat user.
- * It is passed to the socket-receive thread (connecteduser_receive_messages) as well as to
- * the socket-send thread (connecteduser_send_messages).
+ * It is passed to the socket-receive thread (WebSocketClientReceiveThreadFunction) as well as to
+ * the socket-send thread (WebSocketClientSendThreadFunction).
  * It can also be accessed via the global array users (mutex protected).
  */
 struct ConnectedUser
@@ -109,17 +112,6 @@ struct ConnectedUser
      (sending can be done by send and recv thread;
       may not be simultaneously locked with chat_mutex by the same thread) */
   pthread_mutex_t send_mutex;
-  /* specifies whether a ping shall be executed (1), is being executed (2) or
-     no ping is pending (0) */
-  int ping_status;
-  /* the start time of the ping, if a ping is running */
-  struct timespec ping_start;
-  /* the message used for the ping (must match the pong response)*/
-  char ping_message[128];
-  /* the length of the ping message (may not exceed 125) */
-  size_t ping_message_len;
-  /* the numeric ping message suffix to detect ping messages, which are too old */
-  int ping_counter;
 };
 
 /**
@@ -307,7 +299,7 @@ chat_addmessage (size_t from_user_id,
 
 /**
  * Adds a new chat user to the global user list.
- * This will be called at the start of connecteduser_receive_messages.
+ * This will be called at the start of WebSocketClientReceiveThreadFunction.
  *
  * @param cu The connected user
  * @return   0 on success, other values on error
@@ -488,8 +480,7 @@ connecteduser_parse_received_websocket_stream (struct ConnectedUser *cu,
                                        &new_offset,
                                        &frame_data,
                                        &frame_len);
-    if (0 > status)
-    {
+    if (0 > status) {
       /* an error occurred and the connection must be closed */
       if (NULL != frame_data)
       {
@@ -507,194 +498,9 @@ connecteduser_parse_received_websocket_stream (struct ConnectedUser *cu,
     {
       buf_offset += new_offset;
 
-      if (0 < status)
-      {
+      if (0 < status) {
         /* the frame is complete */
-        switch (status)
-        {
-        case MHD_WEBSOCKET_STATUS_TEXT_FRAME:
-        case MHD_WEBSOCKET_STATUS_BINARY_FRAME:
-          /**
-           * a text or binary frame has been received.
-           * in this chat server example we use a simple protocol where
-           * the JavaScript added a prefix like "<command>|<to_user_id>|data".
-           * Some examples:
-           * "||test" means a regular chat message to everyone with the message "test".
-           * "private|1|secret" means a private chat message to user with id 1 with the message "secret".
-           * "name||MyNewName" means that the user requests a rename to "MyNewName"
-           * "ping|1|" means that the user with id 1 shall get a ping
-           *
-           * Binary data is handled here like text data.
-           * The difference in the data is only checked by the JavaScript.
-           */
-          {
-            size_t command      = 1000;
-            size_t from_user_id = cu->user_id;
-            size_t to_user_id   = 0;
-            size_t i;
-
-            /* parse the command */
-            for (i = 0; i < frame_len; ++i)
-            {
-              if ('|' == frame_data[i])
-              {
-                frame_data[i] = 0;
-                ++i;
-                break;
-              }
-            }
-            if (0 < i)
-            {
-              if (i == 1)
-              {
-                /* no command means regular message */
-                command = 0;
-              }
-              else if (0 == strcasecmp (frame_data, "private"))
-              {
-                /* private means private message */
-                command = 1;
-              }
-              else if (0 == strcasecmp (frame_data, "name"))
-              {
-                /* name means chat user rename */
-                command = 2;
-              }
-              else if (0 == strcasecmp (frame_data, "ping"))
-              {
-                /* ping means a ping request */
-                command = 3;
-              }
-              else
-              {
-                /* no other commands supported, so this means invalid */
-                command = 1000;
-              }
-            }
-
-            /* parse the to_user_id, if given */
-            size_t j = i;
-            for (; j < frame_len; ++j)
-            {
-              if ('|' == frame_data[j])
-              {
-                frame_data[j] = 0;
-                ++j;
-                break;
-              }
-            }
-            if (i + 1 < j)
-            {
-              to_user_id = (size_t) atoi (frame_data + i);
-            }
-
-            /* decide via the command what action to do */
-            if (frame_len >= j)
-            {
-              int is_binary = (MHD_WEBSOCKET_STATUS_BINARY_FRAME == status ? 1 :
-                               0);
-              switch (command)
-              {
-              case 0:
-                /* regular chat message */
-                {
-                  /**
-                  * Generate the message for the message list.
-                  * Regular chat messages get the command "regular".
-                  * After that we add the from_user_id, followed by the content.
-                  * The content must always be copied with memcpy instead of strcat,
-                  * because the data (binary as well as UTF-8 encoded) is allowed
-                  * to contain the NUL character.
-                  * However we will add a terminating NUL character,
-                  * which is not included in the data length
-                  * (and thus will not be send to the recipients).
-                  * This is useful for debugging with an IDE.
-                  */
-                  char user_index[32];
-                  snprintf (user_index, 32, "%d", (int) cu->user_id);
-                  size_t user_index_len = strlen (user_index);
-                  size_t data_len = user_index_len + frame_len - j + 9;
-                  char *data = (char *) malloc (data_len + 1);
-                  if (NULL != data)
-                  {
-                    strcpy (data, "regular|");
-                    strcat (data, user_index);
-                    strcat (data, "|");
-                    size_t offset = strlen (data);
-                    memcpy (data + offset,
-                            frame_data + j,
-                            frame_len - j);
-                    data[data_len] = 0;
-
-                    /* add the chat message to the global list */
-                    chat_addmessage (from_user_id,
-                                     0,
-                                     data,
-                                     data_len,
-                                     is_binary,
-                                     1);
-                    free (data);
-                  }
-                }
-                break;
-
-              case 1:
-                /* private chat message */
-                break;
-
-              case 2:
-                /* rename */
-                break;
-
-              case 3:
-                /* ping */
-                {
-                  if (0 != pthread_mutex_lock (&chat_mutex))
-                    abort ();
-                  /* check whether the to_user exists */
-                  struct ConnectedUser *ping_user = NULL;
-                  for (size_t k = 0; k < user_count; ++k)
-                  {
-                    if (users[k]->user_id == to_user_id)
-                    {
-                      ping_user = users[k];
-                      break;
-                    }
-                  }
-                  if (NULL == ping_user)
-                  {
-                    chat_addmessage (0,
-                                     from_user_id,
-                                     "error||Couldn't find the specified user for pinging.",
-                                     52,
-                                     0,
-                                     0);
-                  }
-                  else
-                  {
-                    /* if pinging is requested, */
-                    /* we mark the user and inform the sender about this */
-                    if (0 == ping_user->ping_status)
-                    {
-                      ping_user->ping_status = 1;
-                      pthread_cond_signal (&ping_user->wake_up_sender);
-                    }
-                  }
-                  if (0 != pthread_mutex_unlock (&chat_mutex))
-                    abort ();
-                }
-                break;
-
-              default:
-                /* invalid command */
-                break;
-              }
-            }
-          }
-          MHD_websocket_free (cu->ws,
-                              frame_data);
-          return 0;
-
+        switch (status) {
         case MHD_WEBSOCKET_STATUS_CLOSE_FRAME:
           /* if we receive a close frame, we will respond with one */
           MHD_websocket_free (cu->ws,
@@ -717,69 +523,6 @@ connecteduser_parse_received_websocket_stream (struct ConnectedUser *cu,
             }
           }
           return 1;
-
-        case MHD_WEBSOCKET_STATUS_PING_FRAME:
-          /* if we receive a ping frame, we will respond */
-          /* with the corresponding pong frame */
-          {
-            char *pong = NULL;
-            size_t pong_len = 0;
-            int er = MHD_websocket_encode_pong (cu->ws,
-                                                frame_data,
-                                                frame_len,
-                                                &pong,
-                                                &pong_len);
-
-            MHD_websocket_free (cu->ws,
-                                frame_data);
-            if (MHD_WEBSOCKET_STATUS_OK == er)
-            {
-              send_all (cu,
-                        pong,
-                        pong_len);
-              MHD_websocket_free (cu->ws,
-                                  pong);
-            }
-          }
-          return 0;
-
-        case MHD_WEBSOCKET_STATUS_PONG_FRAME:
-          /* if we receive a pong frame, */
-          /* we will check whether we requested this frame and */
-          /* whether it is the last requested pong */
-          if (2 == cu->ping_status)
-          {
-            cu->ping_status = 0;
-            struct timespec now;
-            timespec_get (&now, TIME_UTC);
-            if ((cu->ping_message_len == frame_len) &&
-                (0 == strcmp (frame_data,
-                              cu->ping_message)))
-            {
-              int ping = (int) (((int64_t) (now.tv_sec
-                                            - cu->ping_start.tv_sec))  * 1000
-                                + ((int64_t) (now.tv_nsec
-                                              - cu->ping_start.tv_nsec))
-                                / 1000000);
-              char result_text[240];
-              strcpy (result_text,
-                      "ping|");
-              snprintf (result_text + 5, 235, "%d", (int) cu->user_id);
-              strcat (result_text,
-                      "|");
-              snprintf (result_text + strlen (result_text), 240
-                        - strlen (result_text), "%d", (int) ping);
-              chat_addmessage (0,
-                               0,
-                               result_text,
-                               strlen (result_text),
-                               0,
-                               1);
-            }
-          }
-          MHD_websocket_free (cu->ws,
-                              frame_data);
-          return 0;
 
         default:
           /* This case should really never happen, */
@@ -808,10 +551,9 @@ connecteduser_parse_received_websocket_stream (struct ConnectedUser *cu,
  * @param cls          The connected user
  * @return             Always NULL
  */
-static void *
-connecteduser_send_messages (void *cls)
+static void* WebSocketClientSendThreadFunction(void* cls)
 {
-  std::cout<<"connecteduser_send_messages"<<std::endl;
+  std::cout<<"WebSocketClientSendThreadFunction"<<std::endl;
 
   struct ConnectedUser *cu = (ConnectedUser*)cls;
 
@@ -847,37 +589,6 @@ connecteduser_send_messages (void *cls)
         if (0 != pthread_mutex_unlock (&chat_mutex))
           abort ();
         return NULL;
-      }
-      else if (1 == cu->ping_status)
-      {
-        /* A pending ping is requested */
-        ++cu->ping_counter;
-        strcpy (cu->ping_message, "libmicrohttpdchatserverpingdata");
-        snprintf (cu->ping_message + 31, 97, "%d", (int) cu->ping_counter);
-        cu->ping_message_len = strlen (cu->ping_message);
-        char *frame_data = NULL;
-        size_t frame_len = 0;
-        int er = MHD_websocket_encode_ping (cu->ws,
-                                            cu->ping_message,
-                                            cu->ping_message_len,
-                                            &frame_data,
-                                            &frame_len);
-        if (MHD_WEBSOCKET_STATUS_OK == er)
-        {
-          cu->ping_status = 2;
-          timespec_get (&cu->ping_start, TIME_UTC);
-
-          /* send the data via the TCP/IP socket and */
-          /* unlock the mutex while sending */
-          if (0 != pthread_mutex_unlock (&chat_mutex))
-            abort ();
-          send_all (cu,
-                    frame_data,
-                    frame_len);
-          if (0 != pthread_mutex_lock (&chat_mutex))
-            abort ();
-        }
-        MHD_websocket_free (cu->ws, frame_data);
       }
       else if (cu->next_message_index < message_count)
       {
@@ -954,10 +665,9 @@ connecteduser_send_messages (void *cls)
  * @param cls The connected user
  * @return    Always NULL
  */
-static void *
-connecteduser_receive_messages (void *cls)
+static void* WebSocketClientReceiveThreadFunction(void* cls)
 {
-  std::cout<<"connecteduser_receive_messages"<<std::endl;
+  std::cout<<"WebSocketClientReceiveThreadFunction"<<std::endl;
   struct ConnectedUser *cu = (ConnectedUser*)cls;
   char buf[128];
   ssize_t got;
@@ -1100,40 +810,10 @@ connecteduser_receive_messages (void *cls)
     free (init_users);
   }
 
-  /* send the welcome message to the user (bypassing the messaging system) */
-  {
-    char *frame_data = NULL;
-    size_t frame_len = 0;
-    const char *welcome_msg = "moderator||" \
-                              "Welcome to the libmicrohttpd WebSocket chatserver example.\n" \
-                              "Supported commands are:\n" \
-                              "  /m <user> <text> - sends a private message to the specified user\n" \
-                              "  /ping <user> - sends a ping to the specified user\n" \
-                              "  /name <name> - changes your name to the specified name\n" \
-                              "  /disconnect - disconnects your websocket\n\n" \
-                              "All messages, which does not start with a slash, " \
-                              "are regular messages and will be sent to the selected user.\n\n" \
-                              "Have fun!";
-    MHD_websocket_encode_text (cu->ws,
-                               welcome_msg,
-                               strlen (welcome_msg),
-                               MHD_WEBSOCKET_FRAGMENTATION_NONE,
-                               &frame_data,
-                               &frame_len,
-                               NULL);
-    send_all (cu,
-              frame_data,
-              frame_len);
-    MHD_websocket_free (cu->ws,
-                        frame_data);
-  }
 
   /* start the message-send thread */
   pthread_t pt;
-  if (0 != pthread_create (&pt,
-                           NULL,
-                           &connecteduser_send_messages,
-                           cu))
+  if (0 != pthread_create (&pt, NULL, &WebSocketClientSendThreadFunction, cu))
     abort ();
 
   /* start by parsing extra data MHD may have already read, if any */
@@ -1327,10 +1007,7 @@ upgrade_handler (void *cls,
   cu->user_name_len = 0;
 
   /* create thread for the new connected user */
-  if (0 != pthread_create (&pt,
-                           NULL,
-                           &connecteduser_receive_messages,
-                           cu))
+  if (0 != pthread_create(&pt, NULL, &WebSocketClientReceiveThreadFunction, cu))
     abort ();
   pthread_detach (pt);
 }
@@ -1594,7 +1271,7 @@ bool cREFACTOR_MEWebServer::Open(const util::cIPAddress& host, uint16_t port, co
   sad.sin_port   = htons(port);
 
   if (!private_key.empty() && !public_cert.empty()) {
-    std::cout<<"cWebServer::Run Starting server at https://"<<address<<":"<<port<<"/"<<std::endl;
+    std::cout<<"cREFACTOR_MEWebServer::Run Starting server at https://"<<address<<":"<<port<<"/"<<std::endl;
     std::string server_key;
     util::ReadFileIntoString(private_key, 10 * 1024, server_key);
     std::string server_cert;
@@ -1612,7 +1289,7 @@ bool cREFACTOR_MEWebServer::Open(const util::cIPAddress& host, uint16_t port, co
                           MHD_OPTION_SOCK_ADDR, (struct sockaddr*)&sad,
                           MHD_OPTION_END);
   } else {
-    std::cout<<"cWebServer::Run Starting server at http://"<<address<<":"<<port<<"/"<<std::endl;
+    std::cout<<"cREFACTOR_MEWebServer::Run Starting server at http://"<<address<<":"<<port<<"/"<<std::endl;
     d = MHD_start_daemon (MHD_ALLOW_UPGRADE | MHD_USE_AUTO
                           | MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_ERROR_LOG,
                           port,
@@ -1637,7 +1314,7 @@ bool cREFACTOR_MEWebServer::Close()
   return true;
 }
 
-bool cWebServer::Run(const util::cIPAddress& host, uint16_t port, const std::string& private_key, const std::string& public_cert)
+bool RunWebServer(const util::cIPAddress& host, uint16_t port, const std::string& private_key, const std::string& public_cert)
 {
   // Load the static resources
   if (!LoadStaticResources()) {
@@ -1676,9 +1353,11 @@ bool cWebServer::Run(const util::cIPAddress& host, uint16_t port, const std::str
     abort ();
 
   // Wait for the connection threads to respond
+  std::cout<<"Waiting for the connection threads to respond"<<std::endl;
   sleep (2);
 
   // Tell each connection to close
+  std::cout<<"Closing connections"<<std::endl;
   if (0 != pthread_mutex_lock (&chat_mutex))
     abort ();
   for (size_t i = 0; i < user_count; ++i)
