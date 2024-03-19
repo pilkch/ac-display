@@ -249,8 +249,7 @@ chat_addmessage (size_t from_user_id,
   message->is_binary    = is_binary;
   message->data_len     = data_len;
   message->data = (char*)malloc (data_len + 1);
-  if (NULL == message->data)
-  {
+  if (NULL == message->data) {
     free (message);
     return 1;
   }
@@ -258,20 +257,15 @@ chat_addmessage (size_t from_user_id,
   message->data[data_len] = 0;
 
   /* lock the global mutex if needed */
-  if (0 != needs_lock)
-  {
+  if (0 != needs_lock) {
     if (0 != pthread_mutex_lock (&chat_mutex))
       abort ();
   }
 
   /* add the new message to the global message list */
   size_t message_count_ = message_count + 1;
-  struct Message **messages_ = (struct Message **) realloc (messages,
-                                                            message_count_
-                                                            * sizeof (struct
-                                                                      Message *));
-  if (NULL == messages_)
-  {
+  struct Message **messages_ = (struct Message **)realloc(messages, message_count_ * sizeof (struct Message *));
+  if (NULL == messages_) {
     free (message);
     if (0 != needs_lock)
       if (0 != pthread_mutex_unlock (&chat_mutex))
@@ -287,8 +281,7 @@ chat_addmessage (size_t from_user_id,
     pthread_cond_signal (&users[i]->wake_up_sender);
 
   /* unlock the global mutex if needed */
-  if (0 != needs_lock)
-  {
+  if (0 != needs_lock) {
     if (0 != needs_lock)
       if (0 != pthread_mutex_unlock (&chat_mutex))
         abort ();
@@ -315,11 +308,8 @@ chat_adduser (struct ConnectedUser *cu)
 
   /* add the new user to the list */
   size_t user_count_ = user_count + 1;
-  struct ConnectedUser **users_ =
-    (struct ConnectedUser **) realloc (users, user_count_
-                                       * sizeof (struct ConnectedUser *));
-  if (NULL == users_)
-  {
+  struct ConnectedUser **users_ = (struct ConnectedUser **) realloc (users, user_count_ * sizeof (struct ConnectedUser *));
+  if (NULL == users_) {
     /* realloc failed */
     if (0 != pthread_mutex_unlock (&chat_mutex))
       abort ();
@@ -359,13 +349,10 @@ chat_removeuser (struct ConnectedUser *cu)
 
   /* remove the user from the list */
   int found = 0;
-  for (size_t i = 0; i < user_count; ++i)
-  {
-    if (cu == users[i])
-    {
+  for (size_t i = 0; i < user_count; ++i) {
+    if (cu == users[i]) {
       found = 1;
-      for (size_t j = i + 1; j < user_count; ++j)
-      {
+      for (size_t j = i + 1; j < user_count; ++j) {
         users[j - 1] = users[j];
       }
       --user_count;
@@ -391,10 +378,7 @@ chat_removeuser (struct ConnectedUser *cu)
  * @param new_name_len The length of the new name
  * @return             0 on success, other values on error. 2 means name already in use.
  */
-static int
-chat_renameuser (struct ConnectedUser *cu,
-                 char *new_name,
-                 size_t new_name_len)
+static int chat_renameuser (struct ConnectedUser *cu, char *new_name, size_t new_name_len)
 {
   std::cout<<"chat_renameuser"<<std::endl;
 
@@ -403,13 +387,12 @@ chat_renameuser (struct ConnectedUser *cu,
     abort ();
 
   /* check whether the name is already in use */
-  for (size_t i = 0; i < user_count; ++i)
-  {
-    if (cu != users[i])
-    {
-      if ((users[i]->user_name_len == new_name_len) &&
-          (0 == strcasecmp (users[i]->user_name, new_name)))
-      {
+  for (size_t i = 0; i < user_count; ++i) {
+    if (cu != users[i]) {
+      if (
+        (users[i]->user_name_len == new_name_len) &&
+        (0 == strcasecmp (users[i]->user_name, new_name))
+      ) {
         if (0 != pthread_mutex_unlock (&chat_mutex))
           abort ();
         return 2;
@@ -431,8 +414,7 @@ chat_renameuser (struct ConnectedUser *cu,
   strcat (data, new_name);
 
   /* inform the other chat users about the new name */
-  if (0 != chat_addmessage (0, 0, data, data_len, 0, 0))
-  {
+  if (0 != chat_addmessage (0, 0, data, data_len, 0, 0)) {
     free (data);
     if (0 != pthread_mutex_unlock (&chat_mutex))
       abort ();
@@ -461,10 +443,7 @@ chat_renameuser (struct ConnectedUser *cu,
 * @param new_name_len The length of the new name
 * @return             0 on success, other values on error
 */
-static int
-connecteduser_parse_received_websocket_stream (struct ConnectedUser *cu,
-                                               char *buf,
-                                               size_t buf_len)
+static int connecteduser_parse_received_websocket_stream (struct ConnectedUser *cu, char *buf, size_t buf_len)
 {
   std::cout<<"connecteduser_parse_received_websocket_stream"<<std::endl;
 
@@ -482,20 +461,15 @@ connecteduser_parse_received_websocket_stream (struct ConnectedUser *cu,
                                        &frame_len);
     if (0 > status) {
       /* an error occurred and the connection must be closed */
-      if (NULL != frame_data)
-      {
+      if (NULL != frame_data) {
         /* depending on the WebSocket flag */
         /* MHD_WEBSOCKET_FLAG_GENERATE_CLOSE_FRAMES_ON_ERROR */
         /* close frames might be generated on errors */
-        send_all (cu,
-                  frame_data,
-                  frame_len);
+        send_all (cu, frame_data, frame_len);
         MHD_websocket_free (cu->ws, frame_data);
       }
       return 1;
-    }
-    else
-    {
+    } else {
       buf_offset += new_offset;
 
       if (0 < status) {
@@ -503,8 +477,7 @@ connecteduser_parse_received_websocket_stream (struct ConnectedUser *cu,
         switch (status) {
         case MHD_WEBSOCKET_STATUS_CLOSE_FRAME:
           /* if we receive a close frame, we will respond with one */
-          MHD_websocket_free (cu->ws,
-                              frame_data);
+          MHD_websocket_free (cu->ws, frame_data);
           {
             char *result = NULL;
             size_t result_len = 0;
@@ -514,11 +487,8 @@ connecteduser_parse_received_websocket_stream (struct ConnectedUser *cu,
                                                  0,
                                                  &result,
                                                  &result_len);
-            if (MHD_WEBSOCKET_STATUS_OK == er)
-            {
-              send_all (cu,
-                        result,
-                        result_len);
+            if (MHD_WEBSOCKET_STATUS_OK == er) {
+              send_all (cu, result, result_len);
               MHD_websocket_free (cu->ws, result);
             }
           }
@@ -528,8 +498,7 @@ connecteduser_parse_received_websocket_stream (struct ConnectedUser *cu,
           /* This case should really never happen, */
           /* because there are only five types of (finished) websocket frames. */
           /* If it is ever reached, it means that there is memory corruption. */
-          MHD_websocket_free (cu->ws,
-                              frame_data);
+          MHD_websocket_free (cu->ws, frame_data);
           return 1;
         }
       }
@@ -560,50 +529,41 @@ static void* WebSocketClientSendThreadFunction(void* cls)
   /* the main loop of sending messages requires to lock the mutex */
   if (0 != pthread_mutex_lock (&chat_mutex))
     abort ();
-  for (;;)
-  {
+  for (;;) {
     /* loop while not all messages processed */
     int all_messages_read = 0;
-    while (0 == all_messages_read)
-    {
-      if (1 == disconnect_all)
-      {
+    while (0 == all_messages_read) {
+      if (1 == disconnect_all) {
         /* the application closes and want that we disconnect all users */
         struct MHD_UpgradeResponseHandle *urh = cu->urh;
-        if (NULL != urh)
-        {
+        if (NULL != urh) {
           /* Close the TCP/IP socket. */
           /* This will also wake-up the waiting receive-thread for this connected user. */
           cu->urh = NULL;
-          MHD_upgrade_action (urh,
-                              MHD_UPGRADE_ACTION_CLOSE);
+          MHD_upgrade_action(urh, MHD_UPGRADE_ACTION_CLOSE);
         }
         if (0 != pthread_mutex_unlock (&chat_mutex))
           abort ();
         return NULL;
-      }
-      else if (1 == cu->disconnect)
-      {
+      } else if (1 == cu->disconnect) {
         /* The sender thread shall close. */
         /* This is only requested by the receive thread, so we can just leave. */
         if (0 != pthread_mutex_unlock (&chat_mutex))
           abort ();
         return NULL;
-      }
-      else if (cu->next_message_index < message_count)
-      {
+      } else if (cu->next_message_index < message_count) {
         /* a chat message or command is pending */
         char *frame_data = NULL;
         size_t frame_len = 0;
         int er = 0;
         {
           struct Message *msg = messages[cu->next_message_index];
-          if ((0 == msg->to_user_id) ||
-              (cu->user_id == msg->to_user_id) ||
-              (cu->user_id == msg->from_user_id) )
-          {
-            if (0 == msg->is_binary)
-            {
+          if (
+            (0 == msg->to_user_id) ||
+            (cu->user_id == msg->to_user_id) ||
+            (cu->user_id == msg->from_user_id)
+          ) {
+            if (0 == msg->is_binary) {
               er = MHD_websocket_encode_text (cu->ws,
                                               msg->data,
                                               msg->data_len,
@@ -611,9 +571,7 @@ static void* WebSocketClientSendThreadFunction(void* cls)
                                               &frame_data,
                                               &frame_len,
                                               NULL);
-            }
-            else
-            {
+            } else {
               er = MHD_websocket_encode_binary (cu->ws,
                                                 msg->data,
                                                 msg->data_len,
@@ -629,21 +587,15 @@ static void* WebSocketClientSendThreadFunction(void* cls)
         /* unlock the mutex while sending */
         if (0 != pthread_mutex_unlock (&chat_mutex))
           abort ();
-        if (MHD_WEBSOCKET_STATUS_OK == er)
-        {
-          send_all (cu,
-                    frame_data,
-                    frame_len);
+        if (MHD_WEBSOCKET_STATUS_OK == er) {
+          send_all (cu, frame_data, frame_len);
         }
-        MHD_websocket_free (cu->ws,
-                            frame_data);
+        MHD_websocket_free (cu->ws, frame_data);
         if (0 != pthread_mutex_lock (&chat_mutex))
           abort ();
         /* check whether there are still pending messages */
         all_messages_read = (cu->next_message_index < message_count) ? 0 : 1;
-      }
-      else
-      {
+      } else {
         all_messages_read = 1;
       }
     }
@@ -683,22 +635,18 @@ static void* WebSocketClientReceiveThreadFunction(void* cls)
     snprintf (user_name + 4, 28, "%d", (int) cu->user_id);
     cu->user_name_len = strlen (user_name);
     cu->user_name = (char*)malloc (cu->user_name_len + 1);
-    if (NULL == cu->user_name)
-    {
+    if (NULL == cu->user_name) {
       free (cu->extra_in);
       free (cu);
-      MHD_upgrade_action (cu->urh,
-                          MHD_UPGRADE_ACTION_CLOSE);
+      MHD_upgrade_action (cu->urh, MHD_UPGRADE_ACTION_CLOSE);
       return NULL;
     }
     strcpy (cu->user_name, user_name);
   }
 
   /* initialize the wake-up-sender condition variable */
-  if (0 != pthread_cond_init (&cu->wake_up_sender, NULL))
-  {
-    MHD_upgrade_action (cu->urh,
-                        MHD_UPGRADE_ACTION_CLOSE);
+  if (0 != pthread_cond_init (&cu->wake_up_sender, NULL)) {
+    MHD_upgrade_action (cu->urh, MHD_UPGRADE_ACTION_CLOSE);
     free (cu->user_name);
     free (cu->extra_in);
     free (cu);
@@ -706,10 +654,8 @@ static void* WebSocketClientReceiveThreadFunction(void* cls)
   }
 
   /* initialize the send mutex */
-  if (0 != pthread_mutex_init (&cu->send_mutex, NULL))
-  {
-    MHD_upgrade_action (cu->urh,
-                        MHD_UPGRADE_ACTION_CLOSE);
+  if (0 != pthread_mutex_init (&cu->send_mutex, NULL)) {
+    MHD_upgrade_action (cu->urh, MHD_UPGRADE_ACTION_CLOSE);
     pthread_cond_destroy (&cu->wake_up_sender);
     free (cu->user_name);
     free (cu->extra_in);
@@ -725,8 +671,7 @@ static void* WebSocketClientReceiveThreadFunction(void* cls)
                                       MHD_WEBSOCKET_FLAG_SERVER
                                       | MHD_WEBSOCKET_FLAG_NO_FRAGMENTS,
                                       0);
-  if (MHD_WEBSOCKET_STATUS_OK != result)
-  {
+  if (MHD_WEBSOCKET_STATUS_OK != result) {
     chat_removeuser (cu);
     pthread_cond_destroy (&cu->wake_up_sender);
     pthread_mutex_destroy (&cu->send_mutex);
@@ -751,15 +696,11 @@ static void* WebSocketClientReceiveThreadFunction(void* cls)
     /* first collect all users without sending (so the mutex isn't locked too long) */
     if (0 != pthread_mutex_lock (&chat_mutex))
       abort ();
-    if (0 < user_count)
-    {
-      init_users = (struct UserInit *) malloc (user_count * sizeof (struct
-                                                                    UserInit));
-      if (NULL != init_users)
-      {
+    if (0 < user_count) {
+      init_users = (struct UserInit *) malloc (user_count * sizeof (struct UserInit));
+      if (NULL != init_users) {
         init_users_len = user_count;
-        for (size_t i = 0; i < user_count; ++i)
-        {
+        for (size_t i = 0; i < user_count; ++i) {
           char user_index[32];
           snprintf (user_index, 32, "%d", (int) users[i]->user_id);
           size_t user_index_len = strlen (user_index);
@@ -782,13 +723,10 @@ static void* WebSocketClientReceiveThreadFunction(void* cls)
       abort ();
 
     /* then send all users to the connected client */
-    for (size_t i = 0; i < init_users_len; ++i)
-    {
+    for (size_t i = 0; i < init_users_len; ++i) {
       char *frame_data = NULL;
       size_t frame_len = 0;
-      if ((0 < init_users[i].user_init_len) && (NULL !=
-                                                init_users[i].user_init) )
-      {
+      if ((0 < init_users[i].user_init_len) && (NULL != init_users[i].user_init) ) {
         int status = MHD_websocket_encode_text (cu->ws,
                                                 init_users[i].user_init,
                                                 init_users[i].user_init_len,
@@ -798,11 +736,8 @@ static void* WebSocketClientReceiveThreadFunction(void* cls)
                                                 NULL);
         if (MHD_WEBSOCKET_STATUS_OK == status)
         {
-          send_all (cu,
-                    frame_data,
-                    frame_len);
-          MHD_websocket_free (cu->ws,
-                              frame_data);
+          send_all (cu, frame_data, frame_len);
+          MHD_websocket_free (cu->ws, frame_data);
         }
         free (init_users[i].user_init);
       }
@@ -817,12 +752,8 @@ static void* WebSocketClientReceiveThreadFunction(void* cls)
     abort ();
 
   /* start by parsing extra data MHD may have already read, if any */
-  if (0 != cu->extra_in_size)
-  {
-    if (0 != connecteduser_parse_received_websocket_stream (cu,
-                                                            cu->extra_in,
-                                                            cu->extra_in_size))
-    {
+  if (0 != cu->extra_in_size) {
+    if (0 != connecteduser_parse_received_websocket_stream (cu, cu->extra_in, cu->extra_in_size)) {
       chat_removeuser (cu);
       if (0 != pthread_mutex_lock (&chat_mutex))
         abort ();
@@ -833,11 +764,9 @@ static void* WebSocketClientReceiveThreadFunction(void* cls)
       pthread_join (pt, NULL);
 
       struct MHD_UpgradeResponseHandle *urh = cu->urh;
-      if (NULL != urh)
-      {
+      if (NULL != urh) {
         cu->urh = NULL;
-        MHD_upgrade_action (urh,
-                            MHD_UPGRADE_ACTION_CLOSE);
+        MHD_upgrade_action (urh, MHD_UPGRADE_ACTION_CLOSE);
       }
       pthread_cond_destroy (&cu->wake_up_sender);
       pthread_mutex_destroy (&cu->send_mutex);
@@ -852,22 +781,17 @@ static void* WebSocketClientReceiveThreadFunction(void* cls)
   }
 
   /* the main loop for receiving data */
-  while (1)
-  {
+  while (1) {
     got = recv (cu->fd,
                 buf,
                 sizeof (buf),
                 0);
-    if (0 >= got)
-    {
+    if (0 >= got) {
       /* the TCP/IP socket has been closed */
       break;
     }
-    if (0 < got)
-    {
-      if (0 != connecteduser_parse_received_websocket_stream (cu, buf,
-                                                              (size_t) got))
-      {
+    if (0 < got) {
+      if (0 != connecteduser_parse_received_websocket_stream (cu, buf, (size_t) got)) {
         /* A websocket protocol error occurred */
         chat_removeuser (cu);
         if (0 != pthread_mutex_lock (&chat_mutex))
@@ -881,8 +805,7 @@ static void* WebSocketClientReceiveThreadFunction(void* cls)
         if (NULL != urh)
         {
           cu->urh = NULL;
-          MHD_upgrade_action (urh,
-                              MHD_UPGRADE_ACTION_CLOSE);
+          MHD_upgrade_action (urh, MHD_UPGRADE_ACTION_CLOSE);
         }
         pthread_cond_destroy (&cu->wake_up_sender);
         pthread_mutex_destroy (&cu->send_mutex);
@@ -904,11 +827,9 @@ static void* WebSocketClientReceiveThreadFunction(void* cls)
     abort ();
   pthread_join (pt, NULL);
   struct MHD_UpgradeResponseHandle *urh = cu->urh;
-  if (NULL != urh)
-  {
+  if (NULL != urh) {
     cu->urh = NULL;
-    MHD_upgrade_action (urh,
-                        MHD_UPGRADE_ACTION_CLOSE);
+    MHD_upgrade_action(urh, MHD_UPGRADE_ACTION_CLOSE);
   }
   pthread_cond_destroy (&cu->wake_up_sender);
   pthread_mutex_destroy (&cu->send_mutex);
@@ -990,14 +911,11 @@ upgrade_handler (void *cls,
   if (NULL == cu)
     abort ();
   memset (cu, 0, sizeof (struct ConnectedUser));
-  if (0 != extra_in_size)
-  {
+  if (0 != extra_in_size) {
     cu->extra_in = (char*)malloc (extra_in_size);
     if (NULL == cu->extra_in)
       abort ();
-    memcpy (cu->extra_in,
-            extra_in,
-            extra_in_size);
+    memcpy (cu->extra_in, extra_in, extra_in_size);
   }
   cu->extra_in_size = extra_in_size;
   cu->fd = fd;
@@ -1053,8 +971,7 @@ access_handler (void *cls,
 
   if (0 != strcmp (method, "GET"))
     return MHD_NO;              /* unexpected method */
-  if (&aptr != *req_cls)
-  {
+  if (&aptr != *req_cls) {
     /* do never respond on first call */
     *req_cls = &aptr;
     return MHD_YES;
@@ -1106,30 +1023,22 @@ access_handler (void *cls,
     {
       is_valid = 0;
     }
-    value = MHD_lookup_connection_value (connection,
-                                         MHD_HEADER_KIND,
-                                         MHD_HTTP_HEADER_CONNECTION);
+    value = MHD_lookup_connection_value (connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_CONNECTION);
     if (0 != MHD_websocket_check_connection_header (value))
     {
       is_valid = 0;
     }
-    value = MHD_lookup_connection_value (connection,
-                                         MHD_HEADER_KIND,
-                                         MHD_HTTP_HEADER_UPGRADE);
+    value = MHD_lookup_connection_value (connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_UPGRADE);
     if (0 != MHD_websocket_check_upgrade_header (value))
     {
       is_valid = 0;
     }
-    value = MHD_lookup_connection_value (connection,
-                                         MHD_HEADER_KIND,
-                                         MHD_HTTP_HEADER_SEC_WEBSOCKET_VERSION);
+    value = MHD_lookup_connection_value (connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_SEC_WEBSOCKET_VERSION);
     if (0 != MHD_websocket_check_version_header (value))
     {
       is_valid = 0;
     }
-    value = MHD_lookup_connection_value (connection,
-                                         MHD_HEADER_KIND,
-                                         MHD_HTTP_HEADER_SEC_WEBSOCKET_KEY);
+    value = MHD_lookup_connection_value (connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_SEC_WEBSOCKET_KEY);
     if (0 != MHD_websocket_create_accept_header (value, sec_websocket_accept))
     {
       is_valid = 0;
@@ -1138,8 +1047,7 @@ access_handler (void *cls,
     if (1 == is_valid)
     {
       /* create the response for upgrade */
-      response = MHD_create_response_for_upgrade (&upgrade_handler,
-                                                  NULL);
+      response = MHD_create_response_for_upgrade (&upgrade_handler, NULL);
 
       /**
        * For the response we need at least the following headers:
@@ -1150,15 +1058,9 @@ access_handler (void *cls,
        * It requires the value of the Sec-WebSocket-Key header of the request.
        * See also: https://tools.ietf.org/html/rfc6455#section-4.2.2
        */
-      MHD_add_response_header (response,
-                               MHD_HTTP_HEADER_UPGRADE,
-                               "websocket");
-      MHD_add_response_header (response,
-                               MHD_HTTP_HEADER_SEC_WEBSOCKET_ACCEPT,
-                               sec_websocket_accept);
-      ret = MHD_queue_response (connection,
-                                MHD_HTTP_SWITCHING_PROTOCOLS,
-                                response);
+      MHD_add_response_header (response, MHD_HTTP_HEADER_UPGRADE, "websocket");
+      MHD_add_response_header (response, MHD_HTTP_HEADER_SEC_WEBSOCKET_ACCEPT, sec_websocket_accept);
+      ret = MHD_queue_response (connection, MHD_HTTP_SWITCHING_PROTOCOLS, response);
       MHD_destroy_response (response);
     }
     else
@@ -1360,14 +1262,11 @@ bool RunWebServer(const util::cIPAddress& host, uint16_t port, const std::string
   std::cout<<"Closing connections"<<std::endl;
   if (0 != pthread_mutex_lock (&chat_mutex))
     abort ();
-  for (size_t i = 0; i < user_count; ++i)
-  {
+  for (size_t i = 0; i < user_count; ++i) {
     struct MHD_UpgradeResponseHandle *urh = users[i]->urh;
-    if (NULL != urh)
-    {
+    if (NULL != urh) {
       users[i]->urh = NULL;
-      MHD_upgrade_action (users[i]->urh,
-                          MHD_UPGRADE_ACTION_CLOSE);
+      MHD_upgrade_action (users[i]->urh, MHD_UPGRADE_ACTION_CLOSE);
     }
   }
   if (0 != pthread_mutex_unlock (&chat_mutex))
