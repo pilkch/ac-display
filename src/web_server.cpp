@@ -8,6 +8,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <arpa/inet.h>
@@ -41,17 +42,9 @@ public:
 
 class cStaticResourcesRequestHandler {
 public:
-  enum MHD_Result OnRequest(
-    struct MHD_Connection *connection,
-    const char *url,
-    const char *method,
-    const char *version,
-    const char *upload_data,
-    size_t *upload_data_size,
-    void **req_cls
-  );
-
   bool LoadStaticResources();
+
+  bool HandleRequest(struct MHD_Connection* connection, std::string_view url);
 
 private:
   bool LoadStaticResource(const std::string& request_path, const std::string& response_mime_type, const std::string& file_path);
@@ -60,6 +53,10 @@ private:
   std::vector<cStaticResource> static_resources;
 };
 
+class cWebSocketRequestHandler {
+public:
+  bool HandleRequest(struct MHD_Connection* connection, std::string_view url, std::string_view version);
+};
 
 bool cStaticResourcesRequestHandler::LoadStaticResource(const std::string& request_path, const std::string& response_mime_type, const std::string& file_path)
 {
@@ -957,153 +954,107 @@ upgrade_handler (void *cls,
 
 namespace acdisplay {
 
-/**
- * Function called by the MHD_daemon when the client tries to access a page.
- *
- * This is used to provide html, css, javascript, images, and icons,
- * and to initialize a websocket connection.
- * The rules for the initialization of a websocket connection
- * are listed near the URL check of "/ACDisplayServerWebSocket".
- *
- * @param cls closure, whatever was given to #MHD_start_daemon().
- * @param connection The HTTP connection handle
- * @param url The requested URL
- * @param method The request method (typically "GET")
- * @param version The HTTP version
- * @param upload_data Given upload data for POST requests
- * @param upload_data_size The size of the upload data
- * @param req_cls A pointer for request specific data
- * @return MHD_YES on success or MHD_NO on error.
- */
- enum MHD_Result cStaticResourcesRequestHandler::OnRequest(
-  struct MHD_Connection *connection,
-  const char *url,
-  const char *method,
-  const char *version,
-  const char *upload_data,
-  size_t *upload_data_size,
-  void **req_cls
-)
+bool cStaticResourcesRequestHandler::HandleRequest(struct MHD_Connection* connection, std::string_view url)
 {
-  std::cout<<"cStaticResourcesRequestHandler::OnRequest "<<url<<std::endl;
-  static int aptr;
-  struct MHD_Response *response;
-  int ret;
-  (void) version;           /* Unused. Silent compiler warning. */
-  (void) upload_data;       /* Unused. Silent compiler warning. */
-  (void) upload_data_size;  /* Unused. Silent compiler warning. */
-
-  if (0 != strcmp (method, "GET"))
-    return MHD_NO;              /* unexpected method */
-  if (&aptr != *req_cls) {
-    /* do never respond on first call */
-    *req_cls = &aptr;
-    return MHD_YES;
-  }
-  *req_cls = nullptr;                  /* reset when done */
-
-  bool handled = false;
+  std::cout<<"cStaticResourcesRequestHandler::HandleRequest "<<url<<std::endl;
 
   // Handle static resources
-  if (url[0] == '/') {
+  if (!url.empty() && (url[0] == '/')) {
     for (auto&& resource : static_resources) {
       if (url == resource.request_path) {
         // This is the requested resource so create a response
         struct MHD_Response* response = MHD_create_response_from_buffer_static(resource.response_text.length(), resource.response_text.c_str());
         MHD_add_response_header(response, "Content-Type", resource.response_mime_type.c_str());
-        ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
+        const int result = MHD_queue_response(connection, MHD_HTTP_OK, response);
         MHD_destroy_response(response);
-
-        handled = true;
-
-        break;
+        return (result == MHD_YES);
       }
     }
   }
 
-  if (!handled) {
-  if (0 == strcmp (url, "/ACDisplayServerWebSocket")) {
+  return false;
+}
+
+bool cWebSocketRequestHandler::HandleRequest(struct MHD_Connection* connection, std::string_view url, std::string_view version)
+{
+  std::cout<<"cWebSocketRequestHandler::HandleRequest "<<url<<std::endl;
+
+  struct MHD_Response *response = nullptr;
+  int result = MHD_YES;
+
+  if (url == "/ACDisplayServerWebSocket") {
     /**
-     * The path for the websocket updates has been accessed.
-     * For a valid WebSocket request, at least five headers are required:
-     * 1. "Host: <name>"
-     * 2. "Connection: Upgrade"
-     * 3. "Upgrade: websocket"
-     * 4. "Sec-WebSocket-Version: 13"
-     * 5. "Sec-WebSocket-Key: <base64 encoded value>"
-     * Values are compared in a case-insensitive manner.
-     * Furthermore it must be a HTTP/1.1 or higher GET request.
-     * See: https://tools.ietf.org/html/rfc6455#section-4.2.1
-     *
-     * To make this example portable we skip the Host check
-     */
+      * The path for the websocket updates has been accessed.
+      * For a valid WebSocket request, at least five headers are required:
+      * 1. "Host: <name>"
+      * 2. "Connection: Upgrade"
+      * 3. "Upgrade: websocket"
+      * 4. "Sec-WebSocket-Version: 13"
+      * 5. "Sec-WebSocket-Key: <base64 encoded value>"
+      * Values are compared in a case-insensitive manner.
+      * Furthermore it must be a HTTP/1.1 or higher GET request.
+      * See: https://tools.ietf.org/html/rfc6455#section-4.2.1
+      *
+      * To make this example portable we skip the Host check
+      */
 
     char is_valid = 1;
     const char *value = nullptr;
     char sec_websocket_accept[29];
 
     /* check whether an websocket upgrade is requested */
-    if (0 != MHD_websocket_check_http_version (version))
-    {
+    if (0 != MHD_websocket_check_http_version(version.data())) {
       is_valid = 0;
     }
-    value = MHD_lookup_connection_value (connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_CONNECTION);
-    if (0 != MHD_websocket_check_connection_header (value))
-    {
+    value = MHD_lookup_connection_value(connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_CONNECTION);
+    if (0 != MHD_websocket_check_connection_header(value)) {
       is_valid = 0;
     }
-    value = MHD_lookup_connection_value (connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_UPGRADE);
-    if (0 != MHD_websocket_check_upgrade_header (value))
-    {
+    value = MHD_lookup_connection_value(connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_UPGRADE);
+    if (0 != MHD_websocket_check_upgrade_header(value)) {
       is_valid = 0;
     }
-    value = MHD_lookup_connection_value (connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_SEC_WEBSOCKET_VERSION);
-    if (0 != MHD_websocket_check_version_header (value))
-    {
+    value = MHD_lookup_connection_value(connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_SEC_WEBSOCKET_VERSION);
+    if (0 != MHD_websocket_check_version_header(value)) {
       is_valid = 0;
     }
-    value = MHD_lookup_connection_value (connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_SEC_WEBSOCKET_KEY);
-    if (0 != MHD_websocket_create_accept_header (value, sec_websocket_accept))
-    {
+    value = MHD_lookup_connection_value(connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_SEC_WEBSOCKET_KEY);
+    if (0 != MHD_websocket_create_accept_header(value, sec_websocket_accept)) {
       is_valid = 0;
     }
 
-    if (1 == is_valid)
-    {
+    if (1 == is_valid) {
       /* create the response for upgrade */
-      response = MHD_create_response_for_upgrade (&upgrade_handler, nullptr);
+      response = MHD_create_response_for_upgrade(&upgrade_handler, nullptr);
 
       /**
-       * For the response we need at least the following headers:
-       * 1. "Connection: Upgrade"
-       * 2. "Upgrade: websocket"
-       * 3. "Sec-WebSocket-Accept: <base64value>"
-       * The value for Sec-WebSocket-Accept can be generated with MHD_websocket_create_accept_header.
-       * It requires the value of the Sec-WebSocket-Key header of the request.
-       * See also: https://tools.ietf.org/html/rfc6455#section-4.2.2
-       */
-      MHD_add_response_header (response, MHD_HTTP_HEADER_UPGRADE, "websocket");
-      MHD_add_response_header (response, MHD_HTTP_HEADER_SEC_WEBSOCKET_ACCEPT, sec_websocket_accept);
-      ret = MHD_queue_response (connection, MHD_HTTP_SWITCHING_PROTOCOLS, response);
-      MHD_destroy_response (response);
+        * For the response we need at least the following headers:
+        * 1. "Connection: Upgrade"
+        * 2. "Upgrade: websocket"
+        * 3. "Sec-WebSocket-Accept: <base64value>"
+        * The value for Sec-WebSocket-Accept can be generated with MHD_websocket_create_accept_header.
+        * It requires the value of the Sec-WebSocket-Key header of the request.
+        * See also: https://tools.ietf.org/html/rfc6455#section-4.2.2
+        */
+      MHD_add_response_header(response, MHD_HTTP_HEADER_UPGRADE, "websocket");
+      MHD_add_response_header(response, MHD_HTTP_HEADER_SEC_WEBSOCKET_ACCEPT, sec_websocket_accept);
+      result = MHD_queue_response(connection, MHD_HTTP_SWITCHING_PROTOCOLS, response);
+      MHD_destroy_response(response);
     }
     else
     {
       /* return error page */
-      struct MHD_Response *response;
-      response = MHD_create_response_from_buffer_static(PAGE_INVALID_WEBSOCKET_REQUEST.length(), PAGE_INVALID_WEBSOCKET_REQUEST.c_str());
-      ret = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
+      struct MHD_Response* response = MHD_create_response_from_buffer_static(PAGE_INVALID_WEBSOCKET_REQUEST.length(), PAGE_INVALID_WEBSOCKET_REQUEST.c_str());
+      result = MHD_queue_response(connection, MHD_HTTP_BAD_REQUEST, response);
       MHD_destroy_response(response);
     }
   } else {
-    struct MHD_Response *response;
-    response = MHD_create_response_from_buffer_static(PAGE_NOT_FOUND.length(), PAGE_NOT_FOUND.c_str());
-    ret = MHD_queue_response (connection, MHD_HTTP_NOT_FOUND, response);
+    struct MHD_Response* response = MHD_create_response_from_buffer_static(PAGE_NOT_FOUND.length(), PAGE_NOT_FOUND.c_str());
+    result = MHD_queue_response(connection, MHD_HTTP_NOT_FOUND, response);
     MHD_destroy_response(response);
   }
-  }
 
-  return (MHD_Result)ret;
+  return (result == MHD_YES);
 }
 
 }
@@ -1164,7 +1115,7 @@ namespace acdisplay {
 
 class cWebServer {
 public:
-  explicit cWebServer(cStaticResourcesRequestHandler& static_resources_request_handler);
+  explicit cWebServer(cStaticResourcesRequestHandler& static_resources_request_handler, cWebSocketRequestHandler& web_socket_request_handler);
   ~cWebServer();
 
   bool Open(const util::cIPAddress& host, uint16_t port, const std::string& private_key, const std::string& public_cert);
@@ -1185,11 +1136,13 @@ private:
   struct MHD_Daemon* daemon;
 
   cStaticResourcesRequestHandler& static_resources_request_handler;
+  cWebSocketRequestHandler& web_socket_request_handler;
 };
 
-cWebServer::cWebServer(cStaticResourcesRequestHandler& _static_resources_request_handler) :
+cWebServer::cWebServer(cStaticResourcesRequestHandler& _static_resources_request_handler, cWebSocketRequestHandler& _web_socket_request_handler) :
   daemon(nullptr),
-  static_resources_request_handler(_static_resources_request_handler)
+  static_resources_request_handler(_static_resources_request_handler),
+  web_socket_request_handler(_web_socket_request_handler)
 {
 }
 
@@ -1256,6 +1209,26 @@ bool cWebServer::Close()
   return true;
 }
 
+
+
+/**
+ * Function called by the MHD_daemon when the client tries to access a page.
+ *
+ * This is used to provide html, css, javascript, images, and icons,
+ * and to initialize a websocket connection.
+ * The rules for the initialization of a websocket connection
+ * are listed near the URL check of "/ACDisplayServerWebSocket".
+ *
+ * @param cls closure, whatever was given to #MHD_start_daemon().
+ * @param connection The HTTP connection handle
+ * @param url The requested URL
+ * @param method The request method (typically "GET")
+ * @param version The HTTP version
+ * @param upload_data Given upload data for POST requests
+ * @param upload_data_size The size of the upload data
+ * @param req_cls A pointer for request specific data
+ * @return MHD_YES on success or MHD_NO on error.
+ */
 enum MHD_Result cWebServer::_OnRequest(
   void *cls,
   struct MHD_Connection *connection,
@@ -1267,18 +1240,53 @@ enum MHD_Result cWebServer::_OnRequest(
   void **req_cls
 )
 {
+  std::cout<<"cStaticResourcesRequestHandler::HandleRequest "<<url<<std::endl;
+  (void)upload_data;
+  (void)upload_data_size;
+
+  static int aptr = 0;
+
+  if (0 != strcmp(method, "GET")) {
+    return MHD_NO;              /* unexpected method */
+  }
+
+  if (&aptr != *req_cls) {
+    // Never respond on first call
+    *req_cls = &aptr;
+    return MHD_YES;
+  }
+  // We have handled a request before
+  *req_cls = nullptr;
+
+
   cWebServer* pThis = static_cast<cWebServer*>(cls);
   if (pThis == nullptr) {
     std::cerr<<"Error pThis is NULL"<<std::endl;
     return MHD_NO;
   }
 
-  return pThis->static_resources_request_handler.OnRequest(connection, url, method, version, upload_data, upload_data_size, req_cls);
+  // Handle static resources
+  if (pThis->static_resources_request_handler.HandleRequest(connection, url)) {
+    return MHD_YES;
+  }
+
+  // Handle web socket requests
+  if (pThis->web_socket_request_handler.HandleRequest(connection, url, version)) {
+    return MHD_YES;
+  }
+
+  // Unknown resource
+  struct MHD_Response* response = MHD_create_response_from_buffer_static(PAGE_NOT_FOUND.length(), PAGE_NOT_FOUND.c_str());
+  enum MHD_Result result = MHD_queue_response(connection, MHD_HTTP_NOT_FOUND, response);
+  MHD_destroy_response(response);
+
+  return result;
 }
 
 bool RunWebServer(const util::cIPAddress& host, uint16_t port, const std::string& private_key, const std::string& public_cert)
 {
   cStaticResourcesRequestHandler static_resources_request_handler;
+  cWebSocketRequestHandler web_socket_request_handler;
 
   // Load the static resources
   if (!static_resources_request_handler.LoadStaticResources()) {
@@ -1289,8 +1297,8 @@ bool RunWebServer(const util::cIPAddress& host, uint16_t port, const std::string
   if (0 != pthread_mutex_init (&chat_mutex, nullptr))
     return 1;
 
-  cWebServer refactor_webserver(static_resources_request_handler);
-  if (!refactor_webserver.Open(host, port, private_key, public_cert)) {
+  cWebServer webserver(static_resources_request_handler, web_socket_request_handler);
+  if (!webserver.Open(host, port, private_key, public_cert)) {
     std::cerr<<"Error opening web server"<<std::endl;
     return false;
   }
@@ -1342,7 +1350,7 @@ bool RunWebServer(const util::cIPAddress& host, uint16_t port, const std::string
 
   pthread_mutex_destroy (&chat_mutex);
 
-  refactor_webserver.Close();
+  webserver.Close();
 
   return false;
 }
