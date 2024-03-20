@@ -21,7 +21,8 @@
 #include "util.h"
 #include "web_server.h"
 
-namespace {
+
+namespace acdisplay {
 
 const std::string HTML_MIMETYPE = "text/html";
 const std::string CSS_MIMETYPE = "text/css";
@@ -37,10 +38,30 @@ public:
   std::string response_text;
 };
 
-// Yes, this could have been a map of std::string to std::pair<std::string, std::string>
-std::vector<cStaticResource> static_resources;
 
-bool LoadStaticResource(const std::string& request_path, const std::string& response_mime_type, const std::string& file_path)
+class cStaticResourcesRequestHandler {
+public:
+  enum MHD_Result OnRequest(
+    struct MHD_Connection *connection,
+    const char *url,
+    const char *method,
+    const char *version,
+    const char *upload_data,
+    size_t *upload_data_size,
+    void **req_cls
+  );
+
+  bool LoadStaticResources();
+
+private:
+  bool LoadStaticResource(const std::string& request_path, const std::string& response_mime_type, const std::string& file_path);
+
+  // Yes, this could have been a map of std::string to std::pair<std::string, std::string>
+  std::vector<cStaticResource> static_resources;
+};
+
+
+bool cStaticResourcesRequestHandler::LoadStaticResource(const std::string& request_path, const std::string& response_mime_type, const std::string& file_path)
 {
   cStaticResource resource;
 
@@ -58,7 +79,7 @@ bool LoadStaticResource(const std::string& request_path, const std::string& resp
   return true;
 }
 
-bool LoadStaticResources()
+bool cStaticResourcesRequestHandler::LoadStaticResources()
 {
   static_resources.clear();
 
@@ -74,8 +95,11 @@ bool LoadStaticResources()
   );
 }
 
+
+
 const std::string PAGE_NOT_FOUND = "404 Not Found";
 const std::string PAGE_INVALID_WEBSOCKET_REQUEST = "Invalid WebSocket request";
+
 
 }
 
@@ -931,11 +955,12 @@ upgrade_handler (void *cls,
 }
 
 
+namespace acdisplay {
+
 /**
  * Function called by the MHD_daemon when the client tries to access a page.
  *
- * This is used to provide the main page
- * (in this example HTML + CSS + JavaScript is all in the same file)
+ * This is used to provide html, css, javascript, images, and icons,
  * and to initialize a websocket connection.
  * The rules for the initialization of a websocket connection
  * are listed near the URL check of "/ACDisplayServerWebSocket".
@@ -950,21 +975,20 @@ upgrade_handler (void *cls,
  * @param req_cls A pointer for request specific data
  * @return MHD_YES on success or MHD_NO on error.
  */
-static enum MHD_Result
-access_handler (void *cls,
-                struct MHD_Connection *connection,
-                const char *url,
-                const char *method,
-                const char *version,
-                const char *upload_data,
-                size_t *upload_data_size,
-                void **req_cls)
+ enum MHD_Result cStaticResourcesRequestHandler::OnRequest(
+  struct MHD_Connection *connection,
+  const char *url,
+  const char *method,
+  const char *version,
+  const char *upload_data,
+  size_t *upload_data_size,
+  void **req_cls
+)
 {
-  std::cout<<"access_handler "<<url<<std::endl;
+  std::cout<<"cStaticResourcesRequestHandler::OnRequest "<<url<<std::endl;
   static int aptr;
   struct MHD_Response *response;
   int ret;
-  (void) cls;               /* Unused. Silent compiler warning. */
   (void) version;           /* Unused. Silent compiler warning. */
   (void) upload_data;       /* Unused. Silent compiler warning. */
   (void) upload_data_size;  /* Unused. Silent compiler warning. */
@@ -1082,6 +1106,8 @@ access_handler (void *cls,
   return (MHD_Result)ret;
 }
 
+}
+
 void SendWebSocketUpdate()
 {
   // Get the shared rpm value
@@ -1136,29 +1162,43 @@ void SendWebSocketUpdate()
 
 namespace acdisplay {
 
-class cREFACTOR_MEWebServer {
+class cWebServer {
 public:
-  cREFACTOR_MEWebServer();
-  ~cREFACTOR_MEWebServer();
+  explicit cWebServer(cStaticResourcesRequestHandler& static_resources_request_handler);
+  ~cWebServer();
 
   bool Open(const util::cIPAddress& host, uint16_t port, const std::string& private_key, const std::string& public_cert);
   bool Close();
 
 private:
+  static enum MHD_Result _OnRequest(
+    void *cls,
+    struct MHD_Connection *connection,
+    const char *url,
+    const char *method,
+    const char *version,
+    const char *upload_data,
+    size_t *upload_data_size,
+    void **req_cls
+  );
+
   struct MHD_Daemon* daemon;
+
+  cStaticResourcesRequestHandler& static_resources_request_handler;
 };
 
-cREFACTOR_MEWebServer::cREFACTOR_MEWebServer() :
-  daemon(nullptr)
+cWebServer::cWebServer(cStaticResourcesRequestHandler& _static_resources_request_handler) :
+  daemon(nullptr),
+  static_resources_request_handler(_static_resources_request_handler)
 {
 }
 
-cREFACTOR_MEWebServer::~cREFACTOR_MEWebServer()
+cWebServer::~cWebServer()
 {
   Close();
 }
 
-bool cREFACTOR_MEWebServer::Open(const util::cIPAddress& host, uint16_t port, const std::string& private_key, const std::string& public_cert)
+bool cWebServer::Open(const util::cIPAddress& host, uint16_t port, const std::string& private_key, const std::string& public_cert)
 {
   const std::string address(util::ToString(host));
 
@@ -1173,31 +1213,31 @@ bool cREFACTOR_MEWebServer::Open(const util::cIPAddress& host, uint16_t port, co
   sad.sin_port   = htons(port);
 
   if (!private_key.empty() && !public_cert.empty()) {
-    std::cout<<"cREFACTOR_MEWebServer::Run Starting server at https://"<<address<<":"<<port<<"/"<<std::endl;
+    std::cout<<"cWebServer::Run Starting server at https://"<<address<<":"<<port<<"/"<<std::endl;
     std::string server_key;
     util::ReadFileIntoString(private_key, 10 * 1024, server_key);
     std::string server_cert;
     util::ReadFileIntoString(public_cert, 10 * 1024, server_cert);
 
-    daemon = MHD_start_daemon (MHD_ALLOW_UPGRADE | MHD_USE_AUTO
+    daemon = MHD_start_daemon(MHD_ALLOW_UPGRADE | MHD_USE_AUTO
                           | MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_ERROR_LOG
                           | MHD_USE_TLS,
                           port,
                           nullptr, nullptr,
-                          &access_handler, nullptr,
-                          MHD_OPTION_CONNECTION_TIMEOUT, (unsigned int) 120,
+                          &_OnRequest, this,
+                          MHD_OPTION_CONNECTION_TIMEOUT, (unsigned int)120,
                           MHD_OPTION_HTTPS_MEM_KEY, server_key.c_str(),
                           MHD_OPTION_HTTPS_MEM_CERT, server_cert.c_str(),
                           MHD_OPTION_SOCK_ADDR, (struct sockaddr*)&sad,
                           MHD_OPTION_END);
   } else {
-    std::cout<<"cREFACTOR_MEWebServer::Run Starting server at http://"<<address<<":"<<port<<"/"<<std::endl;
-    daemon = MHD_start_daemon (MHD_ALLOW_UPGRADE | MHD_USE_AUTO
+    std::cout<<"cWebServer::Run Starting server at http://"<<address<<":"<<port<<"/"<<std::endl;
+    daemon = MHD_start_daemon(MHD_ALLOW_UPGRADE | MHD_USE_AUTO
                           | MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_ERROR_LOG,
                           port,
                           nullptr, nullptr,
-                          &access_handler, nullptr,
-                          MHD_OPTION_CONNECTION_TIMEOUT, (unsigned int) 120,
+                          &_OnRequest, this,
+                          MHD_OPTION_CONNECTION_TIMEOUT, (unsigned int)120,
                           MHD_OPTION_SOCK_ADDR, (struct sockaddr*)&sad,
                           MHD_OPTION_END);
   }
@@ -1205,7 +1245,7 @@ bool cREFACTOR_MEWebServer::Open(const util::cIPAddress& host, uint16_t port, co
   return (daemon != nullptr);
 }
 
-bool cREFACTOR_MEWebServer::Close()
+bool cWebServer::Close()
 {
   // Stop the server
   if (daemon != nullptr) {
@@ -1216,10 +1256,32 @@ bool cREFACTOR_MEWebServer::Close()
   return true;
 }
 
+enum MHD_Result cWebServer::_OnRequest(
+  void *cls,
+  struct MHD_Connection *connection,
+  const char *url,
+  const char *method,
+  const char *version,
+  const char *upload_data,
+  size_t *upload_data_size,
+  void **req_cls
+)
+{
+  cWebServer* pThis = static_cast<cWebServer*>(cls);
+  if (pThis == nullptr) {
+    std::cerr<<"Error pThis is NULL"<<std::endl;
+    return MHD_NO;
+  }
+
+  return pThis->static_resources_request_handler.OnRequest(connection, url, method, version, upload_data, upload_data_size, req_cls);
+}
+
 bool RunWebServer(const util::cIPAddress& host, uint16_t port, const std::string& private_key, const std::string& public_cert)
 {
+  cStaticResourcesRequestHandler static_resources_request_handler;
+
   // Load the static resources
-  if (!LoadStaticResources()) {
+  if (!static_resources_request_handler.LoadStaticResources()) {
     return false;
   }
 
@@ -1227,7 +1289,7 @@ bool RunWebServer(const util::cIPAddress& host, uint16_t port, const std::string
   if (0 != pthread_mutex_init (&chat_mutex, nullptr))
     return 1;
 
-  cREFACTOR_MEWebServer refactor_webserver;
+  cWebServer refactor_webserver(static_resources_request_handler);
   if (!refactor_webserver.Open(host, port, private_key, public_cert)) {
     std::cerr<<"Error opening web server"<<std::endl;
     return false;
