@@ -119,6 +119,18 @@ const std::string PAGE_INVALID_WEBSOCKET_REQUEST = "Invalid WebSocket request";
  */
 struct ConnectedUser
 {
+  ConnectedUser() :
+    fd(-1),
+    urh(nullptr),
+    ws(nullptr),
+    extra_in(nullptr),
+    extra_in_size(0),
+    user_id(0),
+    disconnect(0)
+  {
+    memset(this, 0, sizeof(ConnectedUser));
+  }
+
   /* the TCP/IP socket for reading/writing */
   MHD_socket fd;
   /* the UpgradeResponseHandle of libmicrohttpd (needed for closing the socket) */
@@ -194,23 +206,18 @@ static void send_all(struct ConnectedUser *cu, const char *buf, size_t len)
 
   if (0 != pthread_mutex_lock (&cu->send_mutex))
     abort ();
-  for (off = 0; off < len; off += ret)
-  {
-    ret = send (cu->fd,
-                &buf[off],
-                (int) (len - off),
-                0);
-    if (0 > ret)
-    {
-      if (EAGAIN == errno)
-      {
+  for (off = 0; off < len; off += ret) {
+    ret = send(cu->fd, &buf[off], (int)(len - off), 0);
+    if (0 > ret) {
+      if (EAGAIN == errno) {
         ret = 0;
         continue;
       }
       break;
     }
-    if (0 == ret)
+    if (0 == ret) {
       break;
+    }
   }
   if (0 != pthread_mutex_unlock (&cu->send_mutex))
     abort ();
@@ -305,7 +312,7 @@ static int connecteduser_parse_received_websocket_stream (struct ConnectedUser *
         switch (status) {
         case MHD_WEBSOCKET_STATUS_CLOSE_FRAME:
           /* if we receive a close frame, we will respond with one */
-          MHD_websocket_free (cu->ws, frame_data);
+          MHD_websocket_free(cu->ws, frame_data);
           {
             char *result = nullptr;
             size_t result_len = 0;
@@ -352,18 +359,18 @@ static void* WebSocketClientSendThreadFunction(void* cls)
 {
   std::cout<<"WebSocketClientSendThreadFunction"<<std::endl;
 
-  struct ConnectedUser *cu = (ConnectedUser*)cls;
+  struct ConnectedUser* cu = (ConnectedUser*)cls;
 
   /* the main loop of sending messages requires to lock the mutex */
   if (0 != pthread_mutex_lock(&users_mutex))
     abort ();
-  for (;;) {
+  while (true) {
     /* loop while not all messages processed */
     bool all_messages_read = false;
     while (!all_messages_read) {
       if (1 == disconnect_all) {
         // The application is closing so we need to disconnect all users
-        struct MHD_UpgradeResponseHandle *urh = cu->urh;
+        struct MHD_UpgradeResponseHandle* urh = cu->urh;
         if (nullptr != urh) {
           /* Close the TCP/IP socket. */
           /* This will also wake-up the waiting receive-thread for this connected user. */
@@ -390,6 +397,7 @@ static void* WebSocketClientSendThreadFunction(void* cls)
     pthread_cond_wait(&cu->wake_up_sender, &users_mutex);
   }
 
+  std::cout<<"WebSocketClientSendThreadFunction returning"<<std::endl;
   return nullptr;
 }
 
@@ -436,8 +444,8 @@ static void* WebSocketClientReceiveThreadFunction(void* cls)
     pthread_cond_destroy(&cu->wake_up_sender);
     pthread_mutex_destroy(&cu->send_mutex);
     MHD_upgrade_action(cu->urh, MHD_UPGRADE_ACTION_CLOSE);
-    free(cu->extra_in);
-    free(cu);
+    delete[] cu->extra_in;
+    delete cu;
     return nullptr;
   }
 
@@ -467,11 +475,11 @@ static void* WebSocketClientReceiveThreadFunction(void* cls)
       pthread_cond_destroy(&cu->wake_up_sender);
       pthread_mutex_destroy(&cu->send_mutex);
       MHD_websocket_stream_free(cu->ws);
-      free(cu->extra_in);
-      free(cu);
+      delete[] cu->extra_in;
+      delete cu;
       return nullptr;
     }
-    free (cu->extra_in);
+    delete[] cu->extra_in;
     cu->extra_in = nullptr;
   }
 
@@ -504,7 +512,7 @@ static void* WebSocketClientReceiveThreadFunction(void* cls)
         pthread_cond_destroy(&cu->wake_up_sender);
         pthread_mutex_destroy(&cu->send_mutex);
         MHD_websocket_stream_free(cu->ws);
-        free(cu);
+        delete cu;
         return nullptr;
       }
     }
@@ -527,7 +535,7 @@ static void* WebSocketClientReceiveThreadFunction(void* cls)
   pthread_cond_destroy(&cu->wake_up_sender);
   pthread_mutex_destroy(&cu->send_mutex);
   MHD_websocket_stream_free(cu->ws);
-  free(cu);
+  delete cu;
 
   return nullptr;
 }
@@ -624,15 +632,14 @@ void cWebSocketRequestHandler::UpgradeHandler(void* cls,
   /* This callback must return as soon as possible. */
 
   /* allocate new connected user */
-  struct ConnectedUser* cu = (ConnectedUser*)malloc (sizeof (struct ConnectedUser));
+  struct ConnectedUser* cu = new ConnectedUser;
   if (nullptr == cu) {
     std::cerr<<"cWebSocketRequestHandler::UpgradeHandler Error allocating memory"<<std::endl;
     return;
   }
 
-  memset(cu, 0, sizeof (struct ConnectedUser));
   if (0 != extra_in_size) {
-    cu->extra_in = (char*)malloc(extra_in_size);
+    cu->extra_in = new char[extra_in_size];
     if (nullptr == cu->extra_in)
       abort();
     memcpy(cu->extra_in, extra_in, extra_in_size);
