@@ -29,6 +29,9 @@
 // For "ms" literal suffix
 using namespace std::chrono_literals;
 
+// NOTE: This file is based on the websocket chat server example that ships with libmicrohttpd:
+// https://github.com/Karlson2k/libmicrohttpd/blob/master/src/examples/websocket_chatserver_example.c
+
 namespace {
 
 const std::string HTML_MIMETYPE = "text/html";
@@ -50,6 +53,143 @@ public:
 };
 
 
+const std::string PAGE_NOT_FOUND = "404 Not Found";
+const std::string PAGE_INVALID_WEBSOCKET_REQUEST = "Invalid WebSocket request";
+
+
+}
+
+/**
+ * This struct is used to keep the data of a connected user.
+ * It is passed to the socket-receive thread (cWebSocketRequestHandler::ClientReceiveThreadFunction) as well as to
+ * the socket-send thread (cWebSocketRequestHandler::ClientSendThreadFunction).
+ * It can also be accessed via the global array users (mutex protected).
+ */
+struct ConnectedUser
+{
+  ConnectedUser() :
+    fd(-1),
+    urh(nullptr),
+    ws(nullptr),
+    extra_in(nullptr),
+    extra_in_size(0),
+    disconnect(false),
+    wake_up_notify(false)
+  {
+  }
+
+  /* the TCP/IP socket for reading/writing */
+  MHD_socket fd;
+  /* the UpgradeResponseHandle of libmicrohttpd (needed for closing the socket) */
+  struct MHD_UpgradeResponseHandle *urh;
+  /* the websocket encode/decode stream */
+  struct MHD_WebSocketStream *ws;
+  /* the possibly read data at the start (only used once) */
+  char *extra_in;
+  size_t extra_in_size;
+  /* specifies whether the websocket shall be closed (true)) or not (false) */
+  bool disconnect;
+  /* condition variable to wake up the sender of this connection */
+  std::condition_variable wake_up_sender;
+  bool wake_up_notify; // Flag to tell the cWebSocketRequestHandler::ClientSendThreadFunction thread that it should wake up (This can only be modified when locked by the users_mutex)
+
+  /* mutex to ensure that no send actions are mixed
+     (sending can be done by send and recv thread;
+      may not be simultaneously locked with users_mutex by the same thread) */
+  std::mutex send_mutex;
+};
+
+
+/* the connected users data (May be accessed by all threads, but is protected by mutex) */
+std::mutex users_mutex;
+std::vector<ConnectedUser*> users;
+
+/* specifies whether all websockets must close (1) or not (0) */
+volatile int disconnect_all = 0;
+
+
+namespace connected_users {
+
+static void AddUser(struct ConnectedUser* cu)
+{
+  std::cout<<"AddUser"<<std::endl;
+
+  // Lock the users mutex and add the user to the list
+  std::lock_guard<std::mutex> lock(users_mutex);
+
+  users.push_back(cu);
+}
+
+void RemoveUser(struct ConnectedUser* cu)
+{
+  std::cout<<"RemoveUser"<<std::endl;
+
+  // Lock the users mutex and remove the user from the list
+  std::lock_guard<std::mutex> lock(users_mutex);
+
+  std::remove(users.begin(), users.end(), cu);
+}
+
+}
+
+
+namespace network {
+
+/**
+ * Change socket to blocking.
+ *
+ * @param fd the socket to manipulate
+ */
+static void SocketMakeBlocking(MHD_socket fd)
+{
+#if defined(MHD_POSIX_SOCKETS)
+  const int flags = fcntl(fd, F_GETFL);
+  if (-1 == flags)
+    abort();
+  if ((flags & ~O_NONBLOCK) != flags)
+    if (-1 == fcntl(fd, F_SETFL, flags & ~O_NONBLOCK))
+      abort();
+#elif defined(MHD_WINSOCK_SOCKETS)
+  unsigned long flags = 0;
+
+  if (0 != ioctlsocket(fd, (int) FIONBIO, &flags))
+    abort();
+#endif /* MHD_WINSOCK_SOCKETS */
+}
+
+/**
+ * Sends all data of the given buffer via the TCP/IP socket
+ *
+ * @param fd  The TCP/IP socket which is used for sending
+ * @param buf The buffer with the data to send
+ * @param len The length in bytes of the data in the buffer
+ */
+static void SocketSendAll(struct ConnectedUser& cu, const char *buf, size_t len)
+{
+  ssize_t ret = 0;
+
+  std::lock_guard<std::mutex> lock(cu.send_mutex);
+
+  for (ssize_t off = 0; off < len; off += ret) {
+    ret = send(cu.fd, &buf[off], (int)(len - off), 0);
+    if (0 > ret) {
+      if (EAGAIN == errno) {
+        ret = 0;
+        continue;
+      }
+      break;
+    }
+    if (0 == ret) {
+      break;
+    }
+  }
+}
+
+}
+
+
+namespace acdisplay {
+
 class cStaticResourcesRequestHandler {
 public:
   bool LoadStaticResources();
@@ -61,22 +201,6 @@ private:
 
   // Yes, this could have been a map of std::string to std::pair<std::string, std::string>
   std::vector<cStaticResource> static_resources;
-};
-
-class cWebSocketRequestHandler {
-public:
-  bool HandleRequest(struct MHD_Connection* connection, std::string_view url, std::string_view version);
-
-private:
-  static void UpgradeHandler(
-    void* cls,
-    struct MHD_Connection* connection,
-    void* req_cls,
-    const char* extra_in,
-    size_t extra_in_size,
-    MHD_socket fd,
-    struct MHD_UpgradeResponseHandle* urh
-  );
 };
 
 bool cStaticResourcesRequestHandler::LoadStaticResource(const std::string& request_path, const std::string& response_mime_type, const std::string& file_path)
@@ -113,473 +237,6 @@ bool cStaticResourcesRequestHandler::LoadStaticResources()
   );
 }
 
-
-
-const std::string PAGE_NOT_FOUND = "404 Not Found";
-const std::string PAGE_INVALID_WEBSOCKET_REQUEST = "Invalid WebSocket request";
-
-
-}
-
-/**
- * This struct is used to keep the data of a connected user.
- * It is passed to the socket-receive thread (WebSocketClientReceiveThreadFunction) as well as to
- * the socket-send thread (WebSocketClientSendThreadFunction).
- * It can also be accessed via the global array users (mutex protected).
- */
-struct ConnectedUser
-{
-  ConnectedUser() :
-    fd(-1),
-    urh(nullptr),
-    ws(nullptr),
-    extra_in(nullptr),
-    extra_in_size(0),
-    disconnect(false),
-    wake_up_notify(false)
-  {
-  }
-
-  /* the TCP/IP socket for reading/writing */
-  MHD_socket fd;
-  /* the UpgradeResponseHandle of libmicrohttpd (needed for closing the socket) */
-  struct MHD_UpgradeResponseHandle *urh;
-  /* the websocket encode/decode stream */
-  struct MHD_WebSocketStream *ws;
-  /* the possibly read data at the start (only used once) */
-  char *extra_in;
-  size_t extra_in_size;
-  /* specifies whether the websocket shall be closed (true)) or not (false) */
-  bool disconnect;
-  /* condition variable to wake up the sender of this connection */
-  std::condition_variable wake_up_sender;
-  bool wake_up_notify; // Flag to tell the WebSocketClientSendThreadFunction thread that it should wake up (This can only be modified when locked by the users_mutex)
-
-  /* mutex to ensure that no send actions are mixed
-     (sending can be done by send and recv thread;
-      may not be simultaneously locked with users_mutex by the same thread) */
-  std::mutex send_mutex;
-};
-
-
-/* the connected users data (May be accessed by all threads, but is protected by mutex) */
-std::mutex users_mutex;
-std::vector<ConnectedUser*> users;
-
-/* specifies whether all websockets must close (1) or not (0) */
-volatile int disconnect_all = 0;
-
-/**
- * Change socket to blocking.
- *
- * @param fd the socket to manipulate
- */
-static void make_blocking (MHD_socket fd)
-{
-  std::cout<<"make_blocking"<<std::endl;
-
-#if defined(MHD_POSIX_SOCKETS)
-  int flags;
-
-  flags = fcntl (fd, F_GETFL);
-  if (-1 == flags)
-    abort ();
-  if ((flags & ~O_NONBLOCK) != flags)
-    if (-1 == fcntl (fd, F_SETFL, flags & ~O_NONBLOCK))
-      abort ();
-#elif defined(MHD_WINSOCK_SOCKETS)
-  unsigned long flags = 0;
-
-  if (0 != ioctlsocket (fd, (int) FIONBIO, &flags))
-    abort ();
-#endif /* MHD_WINSOCK_SOCKETS */
-}
-
-
-/**
- * Sends all data of the given buffer via the TCP/IP socket
- *
- * @param fd  The TCP/IP socket which is used for sending
- * @param buf The buffer with the data to send
- * @param len The length in bytes of the data in the buffer
- */
-static void send_all(struct ConnectedUser& cu, const char *buf, size_t len)
-{
-  //std::cout<<"send_all"<<std::endl;
-
-  ssize_t ret;
-  size_t off;
-
-  std::lock_guard<std::mutex> lock(cu.send_mutex);
-
-  for (off = 0; off < len; off += ret) {
-    ret = send(cu.fd, &buf[off], (int)(len - off), 0);
-    if (0 > ret) {
-      if (EAGAIN == errno) {
-        ret = 0;
-        continue;
-      }
-      break;
-    }
-    if (0 == ret) {
-      break;
-    }
-  }
-}
-
-
-/**
- * Adds a new user to the global user list.
- * This will be called at the start of WebSocketClientReceiveThreadFunction.
- *
- * @param cu The connected user
- * @return   0 on success, other values on error
- */
-static int users_adduser(struct ConnectedUser* cu)
-{
-  std::cout<<"users_adduser"<<std::endl;
-
-  // Lock the users mutex
-  std::lock_guard<std::mutex> lock(users_mutex);
-
-  // Add the new user to the list
-  users.push_back(cu);
-
-  return 0;
-}
-
-
-/**
- * Removes a user from the global user list.
- *
- * @param cu The connected user
- */
-void users_removeuser(struct ConnectedUser* cu)
-{
-  std::cout<<"users_removeuser"<<std::endl;
-
-  // Lock the users mutex
-  std::lock_guard<std::mutex> lock(users_mutex);
-
-  // Remove the user from the list
-  std::remove(users.begin(), users.end(), cu);
-}
-
-
-/**
-* Parses received data from the TCP/IP socket with the websocket stream
-*
-* @param cu           The connected user
-* @param new_name     The new user name
-* @param new_name_len The length of the new name
-* @return             0 on success, other values on error
-*/
-static int connecteduser_parse_received_websocket_stream (struct ConnectedUser& cu, char *buf, size_t buf_len)
-{
-  std::cout<<"connecteduser_parse_received_websocket_stream"<<std::endl;
-
-  size_t buf_offset = 0;
-  while (buf_offset < buf_len) {
-    size_t new_offset = 0;
-    char *frame_data = nullptr;
-    size_t frame_len  = 0;
-    int status = MHD_websocket_decode(cu.ws,
-                                       buf + buf_offset, buf_len - buf_offset,
-                                       &new_offset,
-                                       &frame_data, &frame_len);
-    if (0 > status) {
-      /* an error occurred and the connection must be closed */
-      if (nullptr != frame_data) {
-        /* depending on the WebSocket flag */
-        /* MHD_WEBSOCKET_FLAG_GENERATE_CLOSE_FRAMES_ON_ERROR */
-        /* close frames might be generated on errors */
-        send_all(cu, frame_data, frame_len);
-        MHD_websocket_free(cu.ws, frame_data);
-      }
-      return 1;
-    } else {
-      buf_offset += new_offset;
-
-      if (0 < status) {
-        /* the frame is complete */
-        switch (status) {
-        case MHD_WEBSOCKET_STATUS_CLOSE_FRAME:
-          /* if we receive a close frame, we will respond with one */
-          MHD_websocket_free(cu.ws, frame_data);
-          {
-            char *result = nullptr;
-            size_t result_len = 0;
-            int er = MHD_websocket_encode_close(cu.ws,
-                                                 MHD_WEBSOCKET_CLOSEREASON_REGULAR,
-                                                 nullptr,
-                                                 0,
-                                                 &result, &result_len);
-            if (MHD_WEBSOCKET_STATUS_OK == er) {
-              send_all(cu, result, result_len);
-              MHD_websocket_free(cu.ws, result);
-            }
-          }
-          return 1;
-
-        default:
-          /* This case should really never happen, */
-          /* because there are only five types of (finished) websocket frames. */
-          /* If it is ever reached, it means that there is memory corruption. */
-          MHD_websocket_free(cu.ws, frame_data);
-          return 1;
-        }
-      }
-    }
-  }
-
-  return 0;
-}
-
-
-void SendWebSocketUpdate(struct ConnectedUser& user)
-{
-  // Get a copy of the AC data
-  mutex_ac_data.lock();
-  const cACData copy = ac_data;
-  mutex_ac_data.unlock();
-
-  // Create our car info update
-  const std::string update = "car_info|" +
-    std::to_string(copy.gear) + "|" +
-    std::to_string(copy.accelerator_0_to_1) + "|" +
-    std::to_string(copy.brake_0_to_1) + "|" +
-    std::to_string(copy.clutch_0_to_1) + "|" +
-    std::to_string(copy.rpm) + "|" +
-    std::to_string(copy.speed_kmh) + "|" +
-    std::to_string(copy.lap_time_ms) + "|" +
-    std::to_string(copy.last_lap_ms) + "|" +
-    std::to_string(copy.best_lap_ms) + "|" +
-    std::to_string(copy.lap_count)
-  ;
-
-  char* frame_data = nullptr;
-  size_t frame_len = 0;
-
-  const int status = MHD_websocket_encode_text(
-    user.ws,
-    update.c_str(), update.length(),
-    MHD_WEBSOCKET_FRAGMENTATION_NONE,
-    &frame_data, &frame_len,
-    nullptr
-  );
-  if (MHD_WEBSOCKET_STATUS_OK == status) {
-    send_all(user, frame_data, frame_len);
-
-    // Free the frame data
-    MHD_websocket_free(user.ws, frame_data);
-  }
-}
-
-
-/**
- * Sends messages from the message list over the TCP/IP socket
- * after encoding it with the websocket stream.
- * This is also used for server-side actions,
- * because the thread for receiving messages waits for
- * incoming data and cannot be woken up.
- * But the sender thread can be woken up easily.
- *
- * @param cls          The connected user
- * @return             Always nullptr
- */
-static void* WebSocketClientSendThreadFunction(void* cls)
-{
-  std::cout<<"WebSocketClientSendThreadFunction"<<std::endl;
-
-  struct ConnectedUser& cu = *((ConnectedUser*)cls);
-
-  std::chrono::high_resolution_clock::time_point last = std::chrono::high_resolution_clock::now();
-
-  bool running = true;
-
-  // Lock the users mutex
-  std::unique_lock lock(users_mutex);
-
-  while (running) {
-    /* loop while not all messages processed */
-    bool all_messages_read = false;
-    while (running && !all_messages_read) {
-      if (1 == disconnect_all) {
-        // The application is closing so we need to disconnect all users
-        struct MHD_UpgradeResponseHandle* urh = cu.urh;
-        if (nullptr != urh) {
-          /* Close the TCP/IP socket. */
-          /* This will also wake-up the waiting receive-thread for this connected user. */
-          cu.urh = nullptr;
-          MHD_upgrade_action(urh, MHD_UPGRADE_ACTION_CLOSE);
-        }
-
-        running = false;
-      } else if (cu.disconnect) {
-        /* The sender thread shall close. */
-        /* This is only requested by the receive thread, so we can just leave. */
-        running = false;
-      } else {
-        all_messages_read = true;
-      }
-    }
-
-    if (!running) {
-      break;
-    }
-
-    // Reset the wake up flag
-    cu.wake_up_notify = false;
-
-    /* Wait for wake up. */
-    /* This will automatically unlock the mutex while waiting and */
-    /* lock the mutex after waiting */
-    cu.wake_up_sender.wait_until(lock, std::chrono::system_clock::now() + 20ms, [&cu]{ return cu.wake_up_notify; });
-
-    const std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
-
-    // Send an update every 20 milliseconds (Roughly)
-    if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last).count() > 20) {
-      lock.unlock();
-      SendWebSocketUpdate(cu);
-      lock.lock();
-
-      last = now;
-    }
-  }
-
-  std::cout<<"WebSocketClientSendThreadFunction returning"<<std::endl;
-  return nullptr;
-}
-
-
-/**
- * Receives messages from the TCP/IP socket and
- * initializes the connected user.
- *
- * @param cls The connected user
- * @return    Always nullptr
- */
-static void* WebSocketClientReceiveThreadFunction(void* cls)
-{
-  std::cout<<"WebSocketClientReceiveThreadFunction"<<std::endl;
-  struct ConnectedUser* cu = (ConnectedUser*)cls;
-
-  /* make the socket blocking */
-  make_blocking(cu->fd);
-
-  /* add the user to the user list */
-  users_adduser(cu);
-
-  /* initialize the web socket stream for encoding/decoding */
-  int result = MHD_websocket_stream_init(&cu->ws, MHD_WEBSOCKET_FLAG_SERVER | MHD_WEBSOCKET_FLAG_NO_FRAGMENTS, 0);
-  if (MHD_WEBSOCKET_STATUS_OK != result) {
-    users_removeuser(cu);
-    MHD_upgrade_action(cu->urh, MHD_UPGRADE_ACTION_CLOSE);
-    delete[] cu->extra_in;
-    delete cu;
-    return nullptr;
-  }
-
-
-  /* start the message-send thread */
-  pthread_t pt;
-  if (0 != pthread_create (&pt, nullptr, &WebSocketClientSendThreadFunction, cu))
-    abort ();
-
-  /* start by parsing extra data MHD may have already read, if any */
-  if (0 != cu->extra_in_size) {
-    if (0 != connecteduser_parse_received_websocket_stream(*cu, cu->extra_in, cu->extra_in_size)) {
-      users_removeuser(cu);
-
-      {
-        std::lock_guard<std::mutex> lock(users_mutex);
-
-        cu->disconnect = true;
-        cu->wake_up_notify = true;
-        cu->wake_up_sender.notify_one();
-      }
-
-      pthread_join(pt, nullptr);
-
-      struct MHD_UpgradeResponseHandle *urh = cu->urh;
-      if (nullptr != urh) {
-        cu->urh = nullptr;
-        MHD_upgrade_action(urh, MHD_UPGRADE_ACTION_CLOSE);
-      }
-      MHD_websocket_stream_free(cu->ws);
-      delete[] cu->extra_in;
-      delete cu;
-      return nullptr;
-    }
-    delete[] cu->extra_in;
-    cu->extra_in = nullptr;
-  }
-
-  char buf[128] = { 0 };
-  ssize_t got = 0;
-
-  /* the main loop for receiving data */
-  while (1) {
-    got = recv(cu->fd, buf, sizeof(buf), 0);
-    if (0 >= got) {
-      /* the TCP/IP socket has been closed */
-      break;
-    }
-    if (0 < got) {
-      if (0 != connecteduser_parse_received_websocket_stream(*cu, buf, (size_t) got)) {
-        /* A websocket protocol error occurred */
-        users_removeuser(cu);
-
-        {
-          std::lock_guard<std::mutex> lock(users_mutex);
-
-          cu->disconnect = true;
-          cu->wake_up_notify = true;
-          cu->wake_up_sender.notify_one();
-        }
-
-        pthread_join(pt, nullptr);
-        struct MHD_UpgradeResponseHandle* urh = cu->urh;
-        if (nullptr != urh) {
-          cu->urh = nullptr;
-          MHD_upgrade_action(urh, MHD_UPGRADE_ACTION_CLOSE);
-        }
-        MHD_websocket_stream_free(cu->ws);
-        delete cu;
-        return nullptr;
-      }
-    }
-  }
-
-  /* cleanup */
-  users_removeuser(cu);
-
-  {
-    std::lock_guard<std::mutex> lock(users_mutex);
-
-    cu->disconnect = true;
-    cu->wake_up_notify = true;
-    cu->wake_up_sender.notify_one();
-  }
-
-  pthread_join(pt, nullptr);
-  struct MHD_UpgradeResponseHandle *urh = cu->urh;
-  if (nullptr != urh) {
-    cu->urh = nullptr;
-    MHD_upgrade_action(urh, MHD_UPGRADE_ACTION_CLOSE);
-  }
-  MHD_websocket_stream_free(cu->ws);
-  delete cu;
-
-  return nullptr;
-}
-
-
-
-
-namespace acdisplay {
-
 bool cStaticResourcesRequestHandler::HandleRequest(struct MHD_Connection* connection, std::string_view url)
 {
   std::cout<<"cStaticResourcesRequestHandler::HandleRequest "<<url<<std::endl;
@@ -601,6 +258,30 @@ bool cStaticResourcesRequestHandler::HandleRequest(struct MHD_Connection* connec
   return false;
 }
 
+
+
+
+class cWebSocketRequestHandler {
+public:
+  bool HandleRequest(struct MHD_Connection* connection, std::string_view url, std::string_view version);
+
+private:
+  static void UpgradeHandler(
+    void* cls,
+    struct MHD_Connection* connection,
+    void* req_cls,
+    const char* extra_in,
+    size_t extra_in_size,
+    MHD_socket fd,
+    struct MHD_UpgradeResponseHandle* urh
+  );
+
+  static void* ClientReceiveThreadFunction(void* cls);
+  static void* ClientSendThreadFunction(void* cls);
+
+  static void SendWebSocketUpdate(struct ConnectedUser& user);
+  static bool ReceiveWebSocket(struct ConnectedUser& cu, char* buf, size_t buf_len);
+};
 
 
 /**
@@ -685,9 +366,316 @@ void cWebSocketRequestHandler::UpgradeHandler(void* cls,
 
   /* create thread for the new connected user */
   pthread_t pt;
-  if (0 != pthread_create(&pt, nullptr, &WebSocketClientReceiveThreadFunction, cu))
+  if (0 != pthread_create(&pt, nullptr, &ClientReceiveThreadFunction, cu))
     abort();
   pthread_detach(pt);
+}
+
+void cWebSocketRequestHandler::SendWebSocketUpdate(struct ConnectedUser& user)
+{
+  // Get a copy of the AC data
+  mutex_ac_data.lock();
+  const cACData copy = ac_data;
+  mutex_ac_data.unlock();
+
+  // Create our car info update
+  const std::string update = "car_info|" +
+    std::to_string(copy.gear) + "|" +
+    std::to_string(copy.accelerator_0_to_1) + "|" +
+    std::to_string(copy.brake_0_to_1) + "|" +
+    std::to_string(copy.clutch_0_to_1) + "|" +
+    std::to_string(copy.rpm) + "|" +
+    std::to_string(copy.speed_kmh) + "|" +
+    std::to_string(copy.lap_time_ms) + "|" +
+    std::to_string(copy.last_lap_ms) + "|" +
+    std::to_string(copy.best_lap_ms) + "|" +
+    std::to_string(copy.lap_count)
+  ;
+
+  char* frame_data = nullptr;
+  size_t frame_len = 0;
+
+  const int status = MHD_websocket_encode_text(
+    user.ws,
+    update.c_str(), update.length(),
+    MHD_WEBSOCKET_FRAGMENTATION_NONE,
+    &frame_data, &frame_len,
+    nullptr
+  );
+  if (MHD_WEBSOCKET_STATUS_OK == status) {
+    network::SocketSendAll(user, frame_data, frame_len);
+
+    // Free the frame data
+    MHD_websocket_free(user.ws, frame_data);
+  }
+}
+
+/**
+ * Sends messages from the message list over the TCP/IP socket
+ * after encoding it with the websocket stream.
+ * This is also used for server-side actions,
+ * because the thread for receiving messages waits for
+ * incoming data and cannot be woken up.
+ * But the sender thread can be woken up easily.
+ *
+ * @param cls          The connected user
+ * @return             Always nullptr
+ */
+void* cWebSocketRequestHandler::ClientSendThreadFunction(void* cls)
+{
+  std::cout<<"cWebSocketRequestHandler::ClientSendThreadFunction"<<std::endl;
+
+  struct ConnectedUser& cu = *((ConnectedUser*)cls);
+
+  std::chrono::high_resolution_clock::time_point last = std::chrono::high_resolution_clock::now();
+
+  bool running = true;
+
+  // Lock the users mutex
+  std::unique_lock lock(users_mutex);
+
+  while (running) {
+    /* loop while not all messages processed */
+    bool all_messages_read = false;
+    while (running && !all_messages_read) {
+      if (1 == disconnect_all) {
+        // The application is closing so we need to disconnect all users
+        struct MHD_UpgradeResponseHandle* urh = cu.urh;
+        if (nullptr != urh) {
+          /* Close the TCP/IP socket. */
+          /* This will also wake-up the waiting receive-thread for this connected user. */
+          cu.urh = nullptr;
+          MHD_upgrade_action(urh, MHD_UPGRADE_ACTION_CLOSE);
+        }
+
+        running = false;
+      } else if (cu.disconnect) {
+        /* The sender thread shall close. */
+        /* This is only requested by the receive thread, so we can just leave. */
+        running = false;
+      } else {
+        all_messages_read = true;
+      }
+    }
+
+    if (!running) {
+      break;
+    }
+
+    // Reset the wake up flag
+    cu.wake_up_notify = false;
+
+    /* Wait for wake up. */
+    /* This will automatically unlock the mutex while waiting and */
+    /* lock the mutex after waiting */
+    cu.wake_up_sender.wait_until(lock, std::chrono::system_clock::now() + 20ms, [&cu]{ return cu.wake_up_notify; });
+
+    const std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
+
+    // Send an update every 20 milliseconds (Roughly)
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last).count() > 20) {
+      lock.unlock();
+      SendWebSocketUpdate(cu);
+      lock.lock();
+
+      last = now;
+    }
+  }
+
+  std::cout<<"cWebSocketRequestHandler::ClientSendThreadFunction returning"<<std::endl;
+  return nullptr;
+}
+
+
+/**
+* Parses received data from the TCP/IP socket with the websocket stream
+*
+* @param cu           The connected user
+* @param new_name     The new user name
+* @param new_name_len The length of the new name
+*/
+bool cWebSocketRequestHandler::ReceiveWebSocket(struct ConnectedUser& cu, char *buf, size_t buf_len)
+{
+  std::cout<<"cWebSocketRequestHandler::ReceiveWebSocket"<<std::endl;
+
+  size_t buf_offset = 0;
+  while (buf_offset < buf_len) {
+    size_t new_offset = 0;
+    char* frame_data = nullptr;
+    size_t frame_len  = 0;
+    int status = MHD_websocket_decode(cu.ws,
+                                       buf + buf_offset, buf_len - buf_offset,
+                                       &new_offset,
+                                       &frame_data, &frame_len);
+    if (0 > status) {
+      /* an error occurred and the connection must be closed */
+      if (nullptr != frame_data) {
+        /* depending on the WebSocket flag */
+        /* MHD_WEBSOCKET_FLAG_GENERATE_CLOSE_FRAMES_ON_ERROR */
+        /* close frames might be generated on errors */
+        network::SocketSendAll(cu, frame_data, frame_len);
+        MHD_websocket_free(cu.ws, frame_data);
+      }
+      return false;
+    } else {
+      buf_offset += new_offset;
+
+      if (0 < status) {
+        /* the frame is complete */
+        switch (status) {
+        case MHD_WEBSOCKET_STATUS_CLOSE_FRAME:
+          /* if we receive a close frame, we will respond with one */
+          MHD_websocket_free(cu.ws, frame_data);
+          {
+            char *result = nullptr;
+            size_t result_len = 0;
+            int er = MHD_websocket_encode_close(cu.ws,
+                                                 MHD_WEBSOCKET_CLOSEREASON_REGULAR,
+                                                 nullptr,
+                                                 0,
+                                                 &result, &result_len);
+            if (MHD_WEBSOCKET_STATUS_OK == er) {
+              network::SocketSendAll(cu, result, result_len);
+              MHD_websocket_free(cu.ws, result);
+            }
+          }
+          return false;
+
+        default:
+          /* This case should really never happen, */
+          /* because there are only five types of (finished) websocket frames. */
+          /* If it is ever reached, it means that there is memory corruption. */
+          MHD_websocket_free(cu.ws, frame_data);
+          return false;
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
+
+/**
+ * Receives messages from the TCP/IP socket and
+ * initializes the connected user.
+ *
+ * @param cls The connected user
+ * @return    Always nullptr
+ */
+void* cWebSocketRequestHandler::ClientReceiveThreadFunction(void* cls)
+{
+  std::cout<<"cWebSocketRequestHandler::ClientReceiveThreadFunction"<<std::endl;
+  struct ConnectedUser* cu = (ConnectedUser*)cls;
+
+  /* make the socket blocking */
+  network::SocketMakeBlocking(cu->fd);
+
+  /* add the user to the user list */
+  connected_users::AddUser(cu);
+
+  /* initialize the web socket stream for encoding/decoding */
+  int result = MHD_websocket_stream_init(&cu->ws, MHD_WEBSOCKET_FLAG_SERVER | MHD_WEBSOCKET_FLAG_NO_FRAGMENTS, 0);
+  if (MHD_WEBSOCKET_STATUS_OK != result) {
+    connected_users::RemoveUser(cu);
+    MHD_upgrade_action(cu->urh, MHD_UPGRADE_ACTION_CLOSE);
+    delete[] cu->extra_in;
+    delete cu;
+    return nullptr;
+  }
+
+
+  /* start the message-send thread */
+  pthread_t pt;
+  if (0 != pthread_create(&pt, nullptr, &ClientSendThreadFunction, cu))
+    abort();
+
+  /* start by parsing extra data MHD may have already read, if any */
+  if (0 != cu->extra_in_size) {
+    if (!ReceiveWebSocket(*cu, cu->extra_in, cu->extra_in_size)) {
+      connected_users::RemoveUser(cu);
+
+      {
+        std::lock_guard<std::mutex> lock(users_mutex);
+
+        cu->disconnect = true;
+        cu->wake_up_notify = true;
+        cu->wake_up_sender.notify_one();
+      }
+
+      pthread_join(pt, nullptr);
+
+      struct MHD_UpgradeResponseHandle *urh = cu->urh;
+      if (nullptr != urh) {
+        cu->urh = nullptr;
+        MHD_upgrade_action(urh, MHD_UPGRADE_ACTION_CLOSE);
+      }
+      MHD_websocket_stream_free(cu->ws);
+      delete[] cu->extra_in;
+      delete cu;
+      return nullptr;
+    }
+    delete[] cu->extra_in;
+    cu->extra_in = nullptr;
+  }
+
+  char buf[128] = { 0 };
+  ssize_t got = 0;
+
+  /* the main loop for receiving data */
+  while (true) {
+    got = recv(cu->fd, buf, sizeof(buf), 0);
+    if (0 >= got) {
+      /* the TCP/IP socket has been closed */
+      break;
+    }
+    if (0 < got) {
+      if (!ReceiveWebSocket(*cu, buf, size_t(got))) {
+        /* A websocket protocol error occurred */
+        connected_users::RemoveUser(cu);
+
+        {
+          std::lock_guard<std::mutex> lock(users_mutex);
+
+          cu->disconnect = true;
+          cu->wake_up_notify = true;
+          cu->wake_up_sender.notify_one();
+        }
+
+        pthread_join(pt, nullptr);
+        struct MHD_UpgradeResponseHandle* urh = cu->urh;
+        if (nullptr != urh) {
+          cu->urh = nullptr;
+          MHD_upgrade_action(urh, MHD_UPGRADE_ACTION_CLOSE);
+        }
+        MHD_websocket_stream_free(cu->ws);
+        delete cu;
+        return nullptr;
+      }
+    }
+  }
+
+  /* cleanup */
+  connected_users::RemoveUser(cu);
+
+  {
+    std::lock_guard<std::mutex> lock(users_mutex);
+
+    cu->disconnect = true;
+    cu->wake_up_notify = true;
+    cu->wake_up_sender.notify_one();
+  }
+
+  pthread_join(pt, nullptr);
+  struct MHD_UpgradeResponseHandle *urh = cu->urh;
+  if (nullptr != urh) {
+    cu->urh = nullptr;
+    MHD_upgrade_action(urh, MHD_UPGRADE_ACTION_CLOSE);
+  }
+  MHD_websocket_stream_free(cu->ws);
+  delete cu;
+
+  return nullptr;
 }
 
 bool cWebSocketRequestHandler::HandleRequest(struct MHD_Connection* connection, std::string_view url, std::string_view version)
@@ -713,32 +701,33 @@ bool cWebSocketRequestHandler::HandleRequest(struct MHD_Connection* connection, 
       * To make this example portable we skip the Host check
       */
 
-    char is_valid = 1;
-    const char *value = nullptr;
-    char sec_websocket_accept[29] = { 0 };
+    bool is_valid = true;
 
     /* check whether an websocket upgrade is requested */
     if (0 != MHD_websocket_check_http_version(version.data())) {
-      is_valid = 0;
+      is_valid = false;
     }
-    value = MHD_lookup_connection_value(connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_CONNECTION);
+
+    const char* value = MHD_lookup_connection_value(connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_CONNECTION);
     if (0 != MHD_websocket_check_connection_header(value)) {
-      is_valid = 0;
+      is_valid = false;
     }
     value = MHD_lookup_connection_value(connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_UPGRADE);
     if (0 != MHD_websocket_check_upgrade_header(value)) {
-      is_valid = 0;
+      is_valid = false;
     }
     value = MHD_lookup_connection_value(connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_SEC_WEBSOCKET_VERSION);
     if (0 != MHD_websocket_check_version_header(value)) {
-      is_valid = 0;
+      is_valid = false;
     }
     value = MHD_lookup_connection_value(connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_SEC_WEBSOCKET_KEY);
+
+    char sec_websocket_accept[29] = { 0 };
     if (0 != MHD_websocket_create_accept_header(value, sec_websocket_accept)) {
-      is_valid = 0;
+      is_valid = false;
     }
 
-    if (1 == is_valid) {
+    if (is_valid) {
       /* create the response for upgrade */
       response = MHD_create_response_for_upgrade(&cWebSocketRequestHandler::UpgradeHandler, nullptr);
 
@@ -777,7 +766,7 @@ namespace acdisplay {
 
 class cWebServer {
 public:
-  explicit cWebServer(cStaticResourcesRequestHandler& static_resources_request_handler, cWebSocketRequestHandler& web_socket_request_handler);
+  cWebServer(cStaticResourcesRequestHandler& static_resources_request_handler, cWebSocketRequestHandler& web_socket_request_handler);
   ~cWebServer();
 
   bool Open(const util::cIPAddress& host, uint16_t port, const std::string& private_key, const std::string& public_cert);
@@ -785,14 +774,14 @@ public:
 
 private:
   static enum MHD_Result _OnRequest(
-    void *cls,
-    struct MHD_Connection *connection,
-    const char *url,
-    const char *method,
-    const char *version,
-    const char *upload_data,
-    size_t *upload_data_size,
-    void **req_cls
+    void* cls,
+    struct MHD_Connection* connection,
+    const char* url,
+    const char* method,
+    const char* version,
+    const char* upload_data,
+    size_t* upload_data_size,
+    void** req_cls
   );
 
   struct MHD_Daemon* daemon;
@@ -892,14 +881,14 @@ bool cWebServer::Close()
  * @return MHD_YES on success or MHD_NO on error.
  */
 enum MHD_Result cWebServer::_OnRequest(
-  void *cls,
-  struct MHD_Connection *connection,
-  const char *url,
-  const char *method,
-  const char *version,
-  const char *upload_data,
-  size_t *upload_data_size,
-  void **req_cls
+  void* cls,
+  struct MHD_Connection* connection,
+  const char* url,
+  const char* method,
+  const char* version,
+  const char* upload_data,
+  size_t* upload_data_size,
+  void** req_cls
 )
 {
   //std::cout<<"cWebServer::_OnRequest "<<url<<std::endl;
@@ -964,7 +953,7 @@ bool RunWebServer(const util::cIPAddress& host, uint16_t port, const std::string
   std::cout<<"Server is running"<<std::endl;
 
   std::cout<<"Press enter to shutdown the server"<<std::endl;
-  (void) getc (stdin);
+  (void)getc(stdin);
   std::cout<<"Shutting down the server"<<std::endl;
 
   // Tell each connection to wake up and disconnect
