@@ -276,7 +276,7 @@ void users_removeuser(struct ConnectedUser* cu)
 * @param new_name_len The length of the new name
 * @return             0 on success, other values on error
 */
-static int connecteduser_parse_received_websocket_stream (struct ConnectedUser *cu, char *buf, size_t buf_len)
+static int connecteduser_parse_received_websocket_stream (struct ConnectedUser& cu, char *buf, size_t buf_len)
 {
   std::cout<<"connecteduser_parse_received_websocket_stream"<<std::endl;
 
@@ -285,20 +285,18 @@ static int connecteduser_parse_received_websocket_stream (struct ConnectedUser *
     size_t new_offset = 0;
     char *frame_data = nullptr;
     size_t frame_len  = 0;
-    int status = MHD_websocket_decode(cu->ws,
-                                       buf + buf_offset,
-                                       buf_len - buf_offset,
+    int status = MHD_websocket_decode(cu.ws,
+                                       buf + buf_offset, buf_len - buf_offset,
                                        &new_offset,
-                                       &frame_data,
-                                       &frame_len);
+                                       &frame_data, &frame_len);
     if (0 > status) {
       /* an error occurred and the connection must be closed */
       if (nullptr != frame_data) {
         /* depending on the WebSocket flag */
         /* MHD_WEBSOCKET_FLAG_GENERATE_CLOSE_FRAMES_ON_ERROR */
         /* close frames might be generated on errors */
-        send_all(*cu, frame_data, frame_len);
-        MHD_websocket_free(cu->ws, frame_data);
+        send_all(cu, frame_data, frame_len);
+        MHD_websocket_free(cu.ws, frame_data);
       }
       return 1;
     } else {
@@ -309,19 +307,18 @@ static int connecteduser_parse_received_websocket_stream (struct ConnectedUser *
         switch (status) {
         case MHD_WEBSOCKET_STATUS_CLOSE_FRAME:
           /* if we receive a close frame, we will respond with one */
-          MHD_websocket_free(cu->ws, frame_data);
+          MHD_websocket_free(cu.ws, frame_data);
           {
             char *result = nullptr;
             size_t result_len = 0;
-            int er = MHD_websocket_encode_close(cu->ws,
+            int er = MHD_websocket_encode_close(cu.ws,
                                                  MHD_WEBSOCKET_CLOSEREASON_REGULAR,
                                                  nullptr,
                                                  0,
-                                                 &result,
-                                                 &result_len);
+                                                 &result, &result_len);
             if (MHD_WEBSOCKET_STATUS_OK == er) {
-              send_all(*cu, result, result_len);
-              MHD_websocket_free(cu->ws, result);
+              send_all(cu, result, result_len);
+              MHD_websocket_free(cu.ws, result);
             }
           }
           return 1;
@@ -330,7 +327,7 @@ static int connecteduser_parse_received_websocket_stream (struct ConnectedUser *
           /* This case should really never happen, */
           /* because there are only five types of (finished) websocket frames. */
           /* If it is ever reached, it means that there is memory corruption. */
-          MHD_websocket_free(cu->ws, frame_data);
+          MHD_websocket_free(cu.ws, frame_data);
           return 1;
         }
       }
@@ -441,8 +438,9 @@ static void* WebSocketClientSendThreadFunction(void* cls)
     /* lock the mutex after waiting */
     cu.wake_up_sender.wait_until(lock, std::chrono::system_clock::now() + 20ms, [&cu]{ return cu.wake_up_notify; });
 
-    std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
-    
+    const std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
+
+    // Send an update every 20 milliseconds (Roughly)
     if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last).count() > 20) {
       lock.unlock();
       SendWebSocketUpdate(cu);
@@ -467,7 +465,7 @@ static void* WebSocketClientSendThreadFunction(void* cls)
 static void* WebSocketClientReceiveThreadFunction(void* cls)
 {
   std::cout<<"WebSocketClientReceiveThreadFunction"<<std::endl;
-  struct ConnectedUser *cu = (ConnectedUser*)cls;
+  struct ConnectedUser* cu = (ConnectedUser*)cls;
 
   /* make the socket blocking */
   make_blocking(cu->fd);
@@ -493,7 +491,7 @@ static void* WebSocketClientReceiveThreadFunction(void* cls)
 
   /* start by parsing extra data MHD may have already read, if any */
   if (0 != cu->extra_in_size) {
-    if (0 != connecteduser_parse_received_websocket_stream(cu, cu->extra_in, cu->extra_in_size)) {
+    if (0 != connecteduser_parse_received_websocket_stream(*cu, cu->extra_in, cu->extra_in_size)) {
       users_removeuser(cu);
 
       {
@@ -525,13 +523,13 @@ static void* WebSocketClientReceiveThreadFunction(void* cls)
 
   /* the main loop for receiving data */
   while (1) {
-    got = recv (cu->fd, buf, sizeof (buf), 0);
+    got = recv(cu->fd, buf, sizeof(buf), 0);
     if (0 >= got) {
       /* the TCP/IP socket has been closed */
       break;
     }
     if (0 < got) {
-      if (0 != connecteduser_parse_received_websocket_stream(cu, buf, (size_t) got)) {
+      if (0 != connecteduser_parse_received_websocket_stream(*cu, buf, (size_t) got)) {
         /* A websocket protocol error occurred */
         users_removeuser(cu);
 
