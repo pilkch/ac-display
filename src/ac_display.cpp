@@ -36,12 +36,11 @@ bool RunServer(const application::cSettings& settings)
 #endif
 
   // Now run the web server
-  cWebServer webServer;
-  const bool result = webServer.Run(settings.GetHTTPSHost(), settings.GetHTTPSPort(), settings.GetHTTPSPrivateKey(), settings.GetHTTPSPublicCert());
+  const bool result = RunWebServer(settings.GetHTTPSHost(), settings.GetHTTPSPort(), settings.GetHTTPSPrivateKey(), settings.GetHTTPSPublicCert());
 
   std::cout<<"Shutting down server"<<std::endl;
 
-  return false;
+  return result;
 }
 
 }

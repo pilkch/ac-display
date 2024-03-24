@@ -69,10 +69,10 @@ $ echo $? # Should print 0
 
 ```mermaid
 flowchart TD
-    AC(Windows Assetto Corsa acs.exe UDP Server 127.0.0.1:9996) --> PY(Windows pyproxy-forward-ac-udp-to-linux.py 192.168.0.2:9997)
-    PY --> AC
-    PY --> DISP(Linux ac-display https://192.168.0.3:8443/)
-    DISP --> PY
+    AC(Windows Assetto Corsa acs.exe UDP Server 127.0.0.1:9996) --> |UDP port 9996| PY(Windows pyproxy-forward-ac-udp-to-linux.py 192.168.0.2:9997)
+    PY --> |UDP| AC
+    PY --> |UDP port 9997| DISP(Linux ac-display https://192.168.0.3:8443/)
+    DISP --> |UDP| PY
     DISP <--> |Visits https://192.168.0.3:8443/| PHONE(Phone web browser)
     PHONE <--> |websocket| DISP
 ```

@@ -32,13 +32,14 @@ void cDebugSineWaveUpdateThread::MainLoop()
     const int rpm = util::clamp(int(h), int(idle), int(idle + range));
     //std::cout<<"delta: "<<delta<<", e: "<<e<<", g: "<<g<<", h: "<<h<<", rpm: "<<rpm<<std::endl;
     const float speed_kph = 150.0f + (100.0f * sinf(0.5f * e));
-    std::cout<<"rpm: "<<rpm<<", speed: "<<speed_kph<<std::endl;
+    //std::cout<<"rpm: "<<rpm<<", speed: "<<speed_kph<<std::endl;
 
     // Update the shared rpm value
-    mutex_ac_data.lock();
-    ac_data.rpm = rpm;
-    ac_data.speed_kmh = speed_kph;
-    mutex_ac_data.unlock();
+    {
+      std::lock_guard<std::mutex> lock(mutex_ac_data);
+      ac_data.rpm = rpm;
+      ac_data.speed_kmh = speed_kph;
+    }
 
     util::msleep(50);
   }
