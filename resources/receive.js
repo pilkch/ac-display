@@ -49,6 +49,7 @@ function socket_onclose(event)
 function socket_onerror(event)
 {
   console.error('WebSocket error reported: ', event);
+  socket.close();
 }
 
 function format_time_smallest_HH_MM_SS_MS(time_ms)
