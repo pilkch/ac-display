@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <fstream>
 #include <iostream>
@@ -24,6 +25,9 @@
 #include "ac_data.h"
 #include "util.h"
 #include "web_server.h"
+
+// For "ms" literal suffix
+using namespace std::chrono_literals;
 
 namespace acdisplay {
 
@@ -201,17 +205,17 @@ static void make_blocking (MHD_socket fd)
  * @param buf The buffer with the data to send
  * @param len The length in bytes of the data in the buffer
  */
-static void send_all(struct ConnectedUser *cu, const char *buf, size_t len)
+static void send_all(struct ConnectedUser& cu, const char *buf, size_t len)
 {
   //std::cout<<"send_all"<<std::endl;
 
   ssize_t ret;
   size_t off;
 
-  std::lock_guard<std::mutex> lock(cu->send_mutex);
+  std::lock_guard<std::mutex> lock(cu.send_mutex);
 
   for (off = 0; off < len; off += ret) {
-    ret = send(cu->fd, &buf[off], (int)(len - off), 0);
+    ret = send(cu.fd, &buf[off], (int)(len - off), 0);
     if (0 > ret) {
       if (EAGAIN == errno) {
         ret = 0;
@@ -293,7 +297,7 @@ static int connecteduser_parse_received_websocket_stream (struct ConnectedUser *
         /* depending on the WebSocket flag */
         /* MHD_WEBSOCKET_FLAG_GENERATE_CLOSE_FRAMES_ON_ERROR */
         /* close frames might be generated on errors */
-        send_all(cu, frame_data, frame_len);
+        send_all(*cu, frame_data, frame_len);
         MHD_websocket_free(cu->ws, frame_data);
       }
       return 1;
@@ -316,7 +320,7 @@ static int connecteduser_parse_received_websocket_stream (struct ConnectedUser *
                                                  &result,
                                                  &result_len);
             if (MHD_WEBSOCKET_STATUS_OK == er) {
-              send_all(cu, result, result_len);
+              send_all(*cu, result, result_len);
               MHD_websocket_free(cu->ws, result);
             }
           }
@@ -337,6 +341,46 @@ static int connecteduser_parse_received_websocket_stream (struct ConnectedUser *
 }
 
 
+void SendWebSocketUpdate(struct ConnectedUser& user)
+{
+  // Get a copy of the AC data
+  mutex_ac_data.lock();
+  const cACData copy = ac_data;
+  mutex_ac_data.unlock();
+
+  // Create our car info update
+  const std::string update = "car_info|" +
+    std::to_string(copy.gear) + "|" +
+    std::to_string(copy.accelerator_0_to_1) + "|" +
+    std::to_string(copy.brake_0_to_1) + "|" +
+    std::to_string(copy.clutch_0_to_1) + "|" +
+    std::to_string(copy.rpm) + "|" +
+    std::to_string(copy.speed_kmh) + "|" +
+    std::to_string(copy.lap_time_ms) + "|" +
+    std::to_string(copy.last_lap_ms) + "|" +
+    std::to_string(copy.best_lap_ms) + "|" +
+    std::to_string(copy.lap_count)
+  ;
+
+  char* frame_data = nullptr;
+  size_t frame_len = 0;
+
+  const int status = MHD_websocket_encode_text(
+    user.ws,
+    update.c_str(), update.length(),
+    MHD_WEBSOCKET_FRAGMENTATION_NONE,
+    &frame_data, &frame_len,
+    nullptr
+  );
+  if (MHD_WEBSOCKET_STATUS_OK == status) {
+    send_all(user, frame_data, frame_len);
+
+    // Free the frame data
+    MHD_websocket_free(user.ws, frame_data);
+  }
+}
+
+
 /**
  * Sends messages from the message list over the TCP/IP socket
  * after encoding it with the websocket stream.
@@ -352,12 +396,14 @@ static void* WebSocketClientSendThreadFunction(void* cls)
 {
   std::cout<<"WebSocketClientSendThreadFunction"<<std::endl;
 
-  struct ConnectedUser* cu = (ConnectedUser*)cls;
+  struct ConnectedUser& cu = *((ConnectedUser*)cls);
+
+  std::chrono::high_resolution_clock::time_point last = std::chrono::high_resolution_clock::now();
+
+  bool running = true;
 
   // Lock the users mutex
   std::unique_lock lock(users_mutex);
-
-  bool running = true;
 
   while (running) {
     /* loop while not all messages processed */
@@ -365,16 +411,16 @@ static void* WebSocketClientSendThreadFunction(void* cls)
     while (running && !all_messages_read) {
       if (1 == disconnect_all) {
         // The application is closing so we need to disconnect all users
-        struct MHD_UpgradeResponseHandle* urh = cu->urh;
+        struct MHD_UpgradeResponseHandle* urh = cu.urh;
         if (nullptr != urh) {
           /* Close the TCP/IP socket. */
           /* This will also wake-up the waiting receive-thread for this connected user. */
-          cu->urh = nullptr;
+          cu.urh = nullptr;
           MHD_upgrade_action(urh, MHD_UPGRADE_ACTION_CLOSE);
         }
 
         running = false;
-      } else if (1 == cu->disconnect) {
+      } else if (1 == cu.disconnect) {
         /* The sender thread shall close. */
         /* This is only requested by the receive thread, so we can just leave. */
         running = false;
@@ -388,12 +434,22 @@ static void* WebSocketClientSendThreadFunction(void* cls)
     }
 
     // Reset the wake up flag
-    cu->wake_up_notify = false;
+    cu.wake_up_notify = false;
 
     /* Wait for wake up. */
     /* This will automatically unlock the mutex while waiting and */
     /* lock the mutex after waiting */
-    cu->wake_up_sender.wait(lock, [cu]{ return cu->wake_up_notify; });
+    cu.wake_up_sender.wait_until(lock, std::chrono::system_clock::now() + 20ms, [&cu]{ return cu.wake_up_notify; });
+
+    std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
+    
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last).count() > 20) {
+      lock.unlock();
+      SendWebSocketUpdate(cu);
+      lock.lock();
+
+      last = now;
+    }
   }
 
   std::cout<<"WebSocketClientSendThreadFunction returning"<<std::endl;
@@ -721,52 +777,6 @@ bool cWebSocketRequestHandler::HandleRequest(struct MHD_Connection* connection, 
 
 }
 
-void SendWebSocketUpdate()
-{
-  // Get the shared rpm value
-  mutex_ac_data.lock();
-  const cACData copy = ac_data;
-  mutex_ac_data.unlock();
-
-  // Create our car info update
-  const std::string update = "car_info|" +
-    std::to_string(copy.gear) + "|" +
-    std::to_string(copy.accelerator_0_to_1) + "|" +
-    std::to_string(copy.brake_0_to_1) + "|" +
-    std::to_string(copy.clutch_0_to_1) + "|" +
-    std::to_string(copy.rpm) + "|" +
-    std::to_string(copy.speed_kmh) + "|" +
-    std::to_string(copy.lap_time_ms) + "|" +
-    std::to_string(copy.last_lap_ms) + "|" +
-    std::to_string(copy.best_lap_ms) + "|" +
-    std::to_string(copy.lap_count)
-  ;
-
-  char* frame_data = nullptr;
-  size_t frame_len = 0;
-
-  // Send the update to each connection
-  // HACK: This is not quick because we call send on the socket inside the lock
-  {
-    std::lock_guard<std::mutex> lock(users_mutex);
-
-    for (auto&& cu : users) {
-      const int status = MHD_websocket_encode_text(
-        cu->ws,
-        update.c_str(), update.length(),
-        MHD_WEBSOCKET_FRAGMENTATION_NONE,
-        &frame_data, &frame_len,
-        nullptr);
-      if (MHD_WEBSOCKET_STATUS_OK == status) {
-        send_all(cu, frame_data, frame_len);
-
-        // Free the frame data
-        MHD_websocket_free(cu->ws, frame_data);
-      }
-    }
-  }
-}
-
 
 namespace acdisplay {
 
@@ -958,12 +968,6 @@ bool RunWebServer(const util::cIPAddress& host, uint16_t port, const std::string
 
   std::cout<<"Server is running"<<std::endl;
 
-  while (true) {
-    SendWebSocketUpdate();
-
-    util::msleep(50);
-  }
-
   std::cout<<"Press enter to shutdown the server"<<std::endl;
   (void) getc (stdin);
   std::cout<<"Shutting down the server"<<std::endl;
@@ -981,7 +985,7 @@ bool RunWebServer(const util::cIPAddress& host, uint16_t port, const std::string
 
   // Wait for the connection threads to respond
   std::cout<<"Waiting for the connection threads to respond"<<std::endl;
-  sleep (2);
+  sleep(2);
 
   // Tell each connection to close
   std::cout<<"Closing connections"<<std::endl;
@@ -998,7 +1002,7 @@ bool RunWebServer(const util::cIPAddress& host, uint16_t port, const std::string
   }
 
   // Wait for the connection threads to close
-  sleep (2);
+  sleep(2);
 
   /* usually we should wait here in a safe way for all threads to disconnect, */
   /* but we skip this in the example */
