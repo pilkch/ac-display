@@ -29,12 +29,16 @@
 // For "ms" literal suffix
 using namespace std::chrono_literals;
 
-namespace acdisplay {
+namespace {
 
 const std::string HTML_MIMETYPE = "text/html";
 const std::string CSS_MIMETYPE = "text/css";
 const std::string JAVASCRIPT_MIMETYPE = "text/javascript";
 const std::string SVG_XML_MIMETYPE = "image/svg+xml";
+
+}
+
+namespace acdisplay {
 
 class cStaticResource {
 public:
@@ -131,8 +135,7 @@ struct ConnectedUser
     ws(nullptr),
     extra_in(nullptr),
     extra_in_size(0),
-    user_id(0),
-    disconnect(0),
+    disconnect(false),
     wake_up_notify(false)
   {
   }
@@ -146,10 +149,8 @@ struct ConnectedUser
   /* the possibly read data at the start (only used once) */
   char *extra_in;
   size_t extra_in_size;
-  /* the unique user id (counting from 1, ids will never be re-used) */
-  size_t user_id;
-  /* specifies whether the websocket shall be closed (1) or not (0) */
-  int disconnect;
+  /* specifies whether the websocket shall be closed (true)) or not (false) */
+  bool disconnect;
   /* condition variable to wake up the sender of this connection */
   std::condition_variable wake_up_sender;
   bool wake_up_notify; // Flag to tell the WebSocketClientSendThreadFunction thread that it should wake up (This can only be modified when locked by the users_mutex)
@@ -160,9 +161,6 @@ struct ConnectedUser
   std::mutex send_mutex;
 };
 
-
-/* the unique user counter for new users (only accessed by main thread) */
-size_t unique_user_id = 0;
 
 /* the connected users data (May be accessed by all threads, but is protected by mutex) */
 std::mutex users_mutex;
@@ -417,7 +415,7 @@ static void* WebSocketClientSendThreadFunction(void* cls)
         }
 
         running = false;
-      } else if (1 == cu.disconnect) {
+      } else if (cu.disconnect) {
         /* The sender thread shall close. */
         /* This is only requested by the receive thread, so we can just leave. */
         running = false;
@@ -497,7 +495,7 @@ static void* WebSocketClientReceiveThreadFunction(void* cls)
       {
         std::lock_guard<std::mutex> lock(users_mutex);
 
-        cu->disconnect = 1;
+        cu->disconnect = true;
         cu->wake_up_notify = true;
         cu->wake_up_sender.notify_one();
       }
@@ -536,7 +534,7 @@ static void* WebSocketClientReceiveThreadFunction(void* cls)
         {
           std::lock_guard<std::mutex> lock(users_mutex);
 
-          cu->disconnect = 1;
+          cu->disconnect = true;
           cu->wake_up_notify = true;
           cu->wake_up_sender.notify_one();
         }
@@ -560,7 +558,7 @@ static void* WebSocketClientReceiveThreadFunction(void* cls)
   {
     std::lock_guard<std::mutex> lock(users_mutex);
 
-    cu->disconnect = 1;
+    cu->disconnect = true;
     cu->wake_up_notify = true;
     cu->wake_up_sender.notify_one();
   }
@@ -684,7 +682,6 @@ void cWebSocketRequestHandler::UpgradeHandler(void* cls,
   cu->extra_in_size = extra_in_size;
   cu->fd = fd;
   cu->urh = urh;
-  cu->user_id = ++unique_user_id;
 
   /* create thread for the new connected user */
   pthread_t pt;
