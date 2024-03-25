@@ -121,6 +121,9 @@ sudo firewall-cmd --reload
 `https://192.168.0.3:7080/`
 2. If you are seeing a "Disconnected" message on the page then press F12 and click on "Console" to check if there are any useful error messages
 
+## Reference
+
+https://www.scribd.com/document/629251050/ACRemoteTelemetryDocumentation
 
 <details>
 <summary>Development History in Images</summary>
