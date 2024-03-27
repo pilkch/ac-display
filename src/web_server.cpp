@@ -161,27 +161,27 @@ static void SocketMakeBlocking(MHD_socket fd)
  * Sends all data of the given buffer via the TCP/IP socket
  *
  * @param fd  The TCP/IP socket which is used for sending
- * @param buf The buffer with the data to send
- * @param len The length in bytes of the data in the buffer
  */
-static void SocketSendAll(struct ConnectedUser& cu, const char *buf, size_t len)
+static void SocketSendAll(struct ConnectedUser& cu, std::string_view buffer)
 {
-  ssize_t ret = 0;
-
   std::lock_guard<std::mutex> lock(cu.send_mutex);
 
-  for (ssize_t off = 0; off < len; off += ret) {
-    ret = send(cu.fd, &buf[off], (int)(len - off), 0);
-    if (0 > ret) {
+  while (!buffer.empty()) {
+    const ssize_t result = send(cu.fd, buffer.data(), int(buffer.length()), 0);
+    if (result < 0) {
+      // Error
       if (EAGAIN == errno) {
-        ret = 0;
+        // It was just an EAGAIN error, we should try again
         continue;
       }
       break;
-    }
-    if (0 == ret) {
+    } else if (0 == result) {
+      // Didn't read anything
       break;
     }
+
+    // Else there was a normal read, subtract what we read from the buffer
+    buffer.remove_prefix(std::min<size_t>(buffer.length(), result));
   }
 }
 
@@ -403,7 +403,7 @@ void cWebSocketRequestHandler::SendWebSocketUpdate(struct ConnectedUser& user)
     nullptr
   );
   if (MHD_WEBSOCKET_STATUS_OK == status) {
-    network::SocketSendAll(user, frame_data, frame_len);
+    network::SocketSendAll(user, std::string_view(frame_data, frame_len));
 
     // Free the frame data
     MHD_websocket_free(user.ws, frame_data);
@@ -513,7 +513,7 @@ bool cWebSocketRequestHandler::ReceiveWebSocket(struct ConnectedUser& cu, char *
         /* depending on the WebSocket flag */
         /* MHD_WEBSOCKET_FLAG_GENERATE_CLOSE_FRAMES_ON_ERROR */
         /* close frames might be generated on errors */
-        network::SocketSendAll(cu, frame_data, frame_len);
+        network::SocketSendAll(cu, std::string_view(frame_data, frame_len));
         MHD_websocket_free(cu.ws, frame_data);
       }
       return false;
@@ -535,7 +535,7 @@ bool cWebSocketRequestHandler::ReceiveWebSocket(struct ConnectedUser& cu, char *
                                                  0,
                                                  &result, &result_len);
             if (MHD_WEBSOCKET_STATUS_OK == er) {
-              network::SocketSendAll(cu, result, result_len);
+              network::SocketSendAll(cu, std::string_view(result, result_len));
               MHD_websocket_free(cu.ws, result);
             }
           }

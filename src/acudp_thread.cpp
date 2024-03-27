@@ -3,6 +3,8 @@
 #include <string>
 #include <thread>
 
+#include <acudp.hpp>
+
 #include "ac_data.h"
 #include "acudp_thread.h"
 #include "util.h"
@@ -20,7 +22,7 @@ void print_handshake_response(const acudp_setup_response& response)
   std::cout<<"  "<<response.track_config<<std::endl;
 }
 
-void print_car_info(const acudp_car_t& car)
+/*void print_car_info(const acudp_car_t& car)
 {
   std::cout<<"Car info:"<<std::endl;
   std::cout<<"  identifier: "<<car.identifier<<std::endl;
@@ -34,7 +36,7 @@ void print_car_info(const acudp_car_t& car)
   std::cout<<"  gas: "<<car.gas<<std::endl;
   std::cout<<"  brake: "<<car.brake<<std::endl;
   std::cout<<"  clutch: "<<car.clutch<<std::endl;
-}
+}*/
 
 }
 
