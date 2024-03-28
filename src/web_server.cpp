@@ -127,7 +127,12 @@ void RemoveUser(struct ConnectedUser* cu)
   // Lock the users mutex and remove the user from the list
   std::lock_guard<std::mutex> lock(users_mutex);
 
-  std::remove(users.begin(), users.end(), cu);
+  for (size_t i = 0; i < users.size(); i++) {
+    if (users[i] == cu) {
+      users.erase(users.begin() + i);
+      break;
+    }
+  }
 }
 
 }
