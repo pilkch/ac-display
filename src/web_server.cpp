@@ -81,11 +81,11 @@ struct ConnectedUser
   /* the TCP/IP socket for reading/writing */
   MHD_socket fd;
   /* the UpgradeResponseHandle of libmicrohttpd (needed for closing the socket) */
-  struct MHD_UpgradeResponseHandle *urh;
+  struct MHD_UpgradeResponseHandle* urh;
   /* the websocket encode/decode stream */
-  struct MHD_WebSocketStream *ws;
+  struct MHD_WebSocketStream* ws;
   /* the possibly read data at the start (only used once) */
-  char *extra_in;
+  char* extra_in;
   size_t extra_in_size;
   /* specifies whether the websocket shall be closed (true)) or not (false) */
   bool disconnect;
@@ -445,10 +445,10 @@ void* cWebSocketRequestHandler::ClientSendThreadFunction(void* cls)
     while (running && !all_messages_read) {
       if (1 == disconnect_all) {
         // The application is closing so we need to disconnect all users
-        struct MHD_UpgradeResponseHandle* urh = cu.urh;
-        if (nullptr != urh) {
+        if (cu.urh != nullptr) {
           /* Close the TCP/IP socket. */
           /* This will also wake-up the waiting receive-thread for this connected user. */
+          struct MHD_UpgradeResponseHandle* urh = cu.urh;
           cu.urh = nullptr;
           MHD_upgrade_action(urh, MHD_UPGRADE_ACTION_CLOSE);
         }
@@ -610,8 +610,8 @@ void* cWebSocketRequestHandler::ClientReceiveThreadFunction(void* cls)
 
       pthread_join(pt, nullptr);
 
-      struct MHD_UpgradeResponseHandle *urh = cu->urh;
-      if (nullptr != urh) {
+      if (cu->urh != nullptr) {
+        struct MHD_UpgradeResponseHandle* urh = cu->urh;
         cu->urh = nullptr;
         MHD_upgrade_action(urh, MHD_UPGRADE_ACTION_CLOSE);
       }
@@ -648,8 +648,8 @@ void* cWebSocketRequestHandler::ClientReceiveThreadFunction(void* cls)
         }
 
         pthread_join(pt, nullptr);
-        struct MHD_UpgradeResponseHandle* urh = cu->urh;
-        if (nullptr != urh) {
+        if (cu->urh != nullptr) {
+          struct MHD_UpgradeResponseHandle* urh = cu->urh;
           cu->urh = nullptr;
           MHD_upgrade_action(urh, MHD_UPGRADE_ACTION_CLOSE);
         }
@@ -672,8 +672,9 @@ void* cWebSocketRequestHandler::ClientReceiveThreadFunction(void* cls)
   }
 
   pthread_join(pt, nullptr);
-  struct MHD_UpgradeResponseHandle *urh = cu->urh;
-  if (nullptr != urh) {
+
+  if (cu->urh != nullptr) {
+    struct MHD_UpgradeResponseHandle* urh = cu->urh;  
     cu->urh = nullptr;
     MHD_upgrade_action(urh, MHD_UPGRADE_ACTION_CLOSE);
   }
@@ -980,13 +981,8 @@ bool RunWebServer(const util::cIPAddress& host, uint16_t port, const std::string
   std::cout<<"Closing connections"<<std::endl;
   {
     std::lock_guard<std::mutex> lock(users_mutex);
-
-    for (auto&& cu : users) {
-      struct MHD_UpgradeResponseHandle* urh = cu->urh;
-      if (nullptr != urh) {
-        cu->urh = nullptr;
-        MHD_upgrade_action(cu->urh, MHD_UPGRADE_ACTION_CLOSE);
-      }
+    if (!users.empty()) {
+      std::cerr<<"Error there are still active connections"<<std::endl;
     }
   }
 
