@@ -776,6 +776,7 @@ public:
   ~cWebServer();
 
   bool Open(const util::cIPAddress& host, uint16_t port, const std::string& private_key, const std::string& public_cert);
+  void NoMoreConnections();
   bool Close();
 
 private:
@@ -805,6 +806,7 @@ cWebServer::cWebServer(cStaticResourcesRequestHandler& _static_resources_request
 
 cWebServer::~cWebServer()
 {
+  NoMoreConnections();
   Close();
 }
 
@@ -853,6 +855,13 @@ bool cWebServer::Open(const util::cIPAddress& host, uint16_t port, const std::st
   }
 
   return (daemon != nullptr);
+}
+
+void cWebServer::NoMoreConnections()
+{
+  if (daemon != nullptr) {
+    MHD_quiesce_daemon(daemon);
+  }
 }
 
 bool cWebServer::Close()
@@ -940,27 +949,67 @@ enum MHD_Result cWebServer::_OnRequest(
   return result;
 }
 
-bool RunWebServer(const util::cIPAddress& host, uint16_t port, const std::string& private_key, const std::string& public_cert)
-{
-  cStaticResourcesRequestHandler static_resources_request_handler;
-  cWebSocketRequestHandler web_socket_request_handler;
 
-  // Load the static resources
-  if (!static_resources_request_handler.LoadStaticResources()) {
+cWebServerManager::cWebServerManager() :
+  static_resources_request_handler(nullptr),
+  web_socket_request_handler(nullptr),
+  webserver(nullptr)
+{
+}
+
+cWebServerManager::~cWebServerManager()
+{
+  if (webserver != nullptr) {
+    delete webserver;
+    webserver = nullptr;
+  }
+
+  if (web_socket_request_handler != nullptr) {
+    delete web_socket_request_handler;
+    web_socket_request_handler = nullptr;
+  }
+
+  if (static_resources_request_handler != nullptr) {
+    delete static_resources_request_handler;
+    static_resources_request_handler = nullptr;
+  }
+}
+
+bool cWebServerManager::Create(const util::cIPAddress& host, uint16_t port, const std::string& private_key, const std::string& public_cert)
+{
+  if (
+    (static_resources_request_handler != nullptr) ||
+    (web_socket_request_handler != nullptr) ||
+    (webserver != nullptr)
+  ) {
+    std::cerr<<"Error already created"<<std::endl;
     return false;
   }
 
-  cWebServer webserver(static_resources_request_handler, web_socket_request_handler);
-  if (!webserver.Open(host, port, private_key, public_cert)) {
+  static_resources_request_handler = new cStaticResourcesRequestHandler;
+  web_socket_request_handler = new cWebSocketRequestHandler;
+
+  // Load the static resources
+  if (!static_resources_request_handler->LoadStaticResources()) {
+    return false;
+  }
+
+  webserver = new cWebServer(*static_resources_request_handler, *web_socket_request_handler);
+  if (!webserver->Open(host, port, private_key, public_cert)) {
     std::cerr<<"Error opening web server"<<std::endl;
     return false;
   }
 
   std::cout<<"Server is running"<<std::endl;
 
-  std::cout<<"Press enter to shutdown the server"<<std::endl;
-  (void)getc(stdin);
+  return true;
+};
+
+bool cWebServerManager::Destroy()
+{
   std::cout<<"Shutting down the server"<<std::endl;
+
+  webserver->NoMoreConnections();
 
   // Tell each connection to wake up and disconnect
   {
@@ -968,6 +1017,7 @@ bool RunWebServer(const util::cIPAddress& host, uint16_t port, const std::string
 
     disconnect_all = 1;
     for (auto&& cu : users) {
+      std::cout<<"Notifying a user connection"<<std::endl;
       cu->wake_up_notify = true;
       cu->wake_up_sender.notify_one();
     }
@@ -992,9 +1042,9 @@ bool RunWebServer(const util::cIPAddress& host, uint16_t port, const std::string
   /* usually we should wait here in a safe way for all threads to disconnect, */
   /* but we skip this in the example */
 
-  webserver.Close();
+  webserver->Close();
 
-  return false;
+  return true;
 }
 
 }

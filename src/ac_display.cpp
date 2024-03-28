@@ -36,11 +36,23 @@ bool RunServer(const application::cSettings& settings)
 #endif
 
   // Now run the web server
-  const bool result = RunWebServer(settings.GetHTTPSHost(), settings.GetHTTPSPort(), settings.GetHTTPSPrivateKey(), settings.GetHTTPSPublicCert());
+  cWebServerManager web_server_manager;
+  if (!web_server_manager.Create(settings.GetHTTPSHost(), settings.GetHTTPSPort(), settings.GetHTTPSPrivateKey(), settings.GetHTTPSPublicCert())) {
+    std::cout<<"Error creating web server"<<std::endl;
+    return false;
+  }
+
+  std::cout<<"Press enter to shutdown the server"<<std::endl;
+  (void)getc(stdin);
 
   std::cout<<"Shutting down server"<<std::endl;
+  if (!web_server_manager.Destroy()) {
+    std::cout<<"Error destroying web server"<<std::endl;
+    return false;
+  }
 
-  return result;
+  std::cout<<"Server has been shutdown"<<std::endl;
+  return true;
 }
 
 }
