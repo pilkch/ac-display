@@ -161,3 +161,13 @@ https://www.scribd.com/document/629251050/ACRemoteTelemetryDocumentation
 ![](/images/16.png)
 
 </details>
+
+
+## Fuzzing
+
+### Fuzz the web server
+
+```bash
+mkdir -p ./corpus/fuzz_web_server_https/
+./fuzz_web_server_https -runs=500000 -fork=1 -max_len=1000 ./corpus/fuzz_web_server_https ./sample_https_requests
+```
