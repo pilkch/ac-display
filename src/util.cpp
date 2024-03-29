@@ -67,6 +67,11 @@ bool TestFileExists(const std::string& sFilePath)
   return (stat(sFilePath.c_str(), &s) >= 0);
 }
 
+bool TestFolderExists(const std::string& sFolderPath)
+{
+  return TestFileExists(sFolderPath);
+}
+
 size_t GetFileSizeBytes(const std::string& sFilePath)
 {
   struct stat s;

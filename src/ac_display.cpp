@@ -24,13 +24,13 @@ bool RunServer(const application::cSettings& settings)
 #ifndef DEBUG_SINE_WAVE
   // Start the ACUDP thread
   if (!StartACUDPThread(settings.GetACUDPHost(), settings.GetACUDPPort())) {
-    std::cout<<"Error connecting to "<<util::ToString(settings.GetACUDPHost())<<":"<<settings.GetACUDPPort()<<std::endl;
+    std::cerr<<"Error connecting to "<<util::ToString(settings.GetACUDPHost())<<":"<<settings.GetACUDPPort()<<std::endl;
     return false;
   }
 #else
   // Start the SineWaveUpdate thread for debugging
   if (!DebugStartSineWaveUpdateThread()) {
-    std::cout<<"Error creating SineWaveUpdateThread"<<std::endl;
+    std::cerr<<"Error creating SineWaveUpdateThread"<<std::endl;
     return false;
   }
 #endif
@@ -38,7 +38,7 @@ bool RunServer(const application::cSettings& settings)
   // Now run the web server
   cWebServerManager web_server_manager;
   if (!web_server_manager.Create(settings.GetHTTPSHost(), settings.GetHTTPSPort(), settings.GetHTTPSPrivateKey(), settings.GetHTTPSPublicCert())) {
-    std::cout<<"Error creating web server"<<std::endl;
+    std::cerr<<"Error creating web server"<<std::endl;
     return false;
   }
 
@@ -47,7 +47,7 @@ bool RunServer(const application::cSettings& settings)
 
   std::cout<<"Shutting down server"<<std::endl;
   if (!web_server_manager.Destroy()) {
-    std::cout<<"Error destroying web server"<<std::endl;
+    std::cerr<<"Error destroying web server"<<std::endl;
     return false;
   }
 

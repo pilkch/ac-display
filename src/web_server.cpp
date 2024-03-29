@@ -230,15 +230,18 @@ bool cStaticResourcesRequestHandler::LoadStaticResources()
 {
   static_resources.clear();
 
+  // A bit of a hack, this will find the resources folder either from the main folder, or from the fuzz folder
+  const std::string resources_folder = util::TestFolderExists("resources") ? "./resources" : "../resources";
+
   return (
-    LoadStaticResource("/", HTML_MIMETYPE, "./resources/index.html") &&
-    LoadStaticResource("/style.css", CSS_MIMETYPE, "./resources/style.css") &&
-    LoadStaticResource("/receive.js", JAVASCRIPT_MIMETYPE, "./resources/receive.js") &&
-    LoadStaticResource("/dial.js", JAVASCRIPT_MIMETYPE, "./resources/dial.js") &&
-    LoadStaticResource("/util.js", JAVASCRIPT_MIMETYPE, "./resources/util.js") &&
-    LoadStaticResource("/disconnected_icon.svg", SVG_XML_MIMETYPE, "./resources/disconnected_icon.svg") &&
-    LoadStaticResource("/fullscreen_icon.svg", SVG_XML_MIMETYPE, "./resources/fullscreen_icon.svg") &&
-    LoadStaticResource("/favicon.svg", SVG_XML_MIMETYPE, "./resources/favicon.svg")
+    LoadStaticResource("/", HTML_MIMETYPE, resources_folder + "/index.html") &&
+    LoadStaticResource("/style.css", CSS_MIMETYPE, resources_folder + "/style.css") &&
+    LoadStaticResource("/receive.js", JAVASCRIPT_MIMETYPE, resources_folder + "/receive.js") &&
+    LoadStaticResource("/dial.js", JAVASCRIPT_MIMETYPE, resources_folder + "/dial.js") &&
+    LoadStaticResource("/util.js", JAVASCRIPT_MIMETYPE, resources_folder + "/util.js") &&
+    LoadStaticResource("/disconnected_icon.svg", SVG_XML_MIMETYPE, resources_folder + "/disconnected_icon.svg") &&
+    LoadStaticResource("/fullscreen_icon.svg", SVG_XML_MIMETYPE, resources_folder + "/fullscreen_icon.svg") &&
+    LoadStaticResource("/favicon.svg", SVG_XML_MIMETYPE, resources_folder + "/favicon.svg")
   );
 }
 
