@@ -5,6 +5,7 @@ Makefile
 
 ac-display
 acudp/acudp-*/
+fuzz/libcurl/curl-*/
 fuzz/fuzz_web_server_https
 libmicrohttpd/libmicrohttpd-*/
 output

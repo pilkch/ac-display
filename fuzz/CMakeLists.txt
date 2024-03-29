@@ -31,13 +31,21 @@ file(GLOB_RECURSE ac_display_sources ../src/ac_data.cpp ../src/ac_display.cpp ..
 set(MICROHTTPD_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/../output/include")
 set(MICROHTTPD_LIB_DIR "${PROJECT_SOURCE_DIR}/../output/lib")
 
+# System curl library
+#set(CURL_LIBRARY "-lcurl")
+#find_package(CURL REQUIRED)
+
+# Our curl library with websockets enabled
+set(CURL_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/output/include")
+set(CURL_LIB_DIR "${PROJECT_SOURCE_DIR}/output/lib")
+
 # Fuzz Web Server HTTPS
 
-ADD_EXECUTABLE(fuzz_web_server_https ${ac_display_sources} ./src/fuzz_webserver_https.cpp)
+ADD_EXECUTABLE(fuzz_web_server_https ${ac_display_sources} ./src/curl_helper.cpp ./src/fuzz_webserver_https.cpp)
 
 target_compile_options(fuzz_web_server_https PRIVATE -fsanitize=address,fuzzer)
 target_link_options(fuzz_web_server_https PRIVATE -fsanitize=address,fuzzer)
 
-target_include_directories(fuzz_web_server_https SYSTEM PUBLIC include ${MICROHTTPD_INCLUDE_DIR})
-target_link_directories(fuzz_web_server_https PUBLIC ${MICROHTTPD_LIB_DIR})
-target_link_libraries(fuzz_web_server_https PRIVATE -fsanitize=address,fuzzer acudp microhttpd microhttpd_ws json-c)
+target_include_directories(fuzz_web_server_https SYSTEM PUBLIC include ${CURL_INCLUDE_DIR} ${MICROHTTPD_INCLUDE_DIR})
+target_link_directories(fuzz_web_server_https PUBLIC ${CURL_LIB_DIR} ${MICROHTTPD_LIB_DIR})
+target_link_libraries(fuzz_web_server_https PRIVATE -fsanitize=address,fuzzer acudp microhttpd curl microhttpd_ws json-c)

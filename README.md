@@ -165,6 +165,12 @@ https://www.scribd.com/document/629251050/ACRemoteTelemetryDocumentation
 
 ## Fuzzing
 
+### Build libcurl
+
+```bash
+(cd fuzz/libcurl && ./build.sh)
+```
+
 ### Fuzz the web server
 
 ```bash
