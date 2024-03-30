@@ -844,6 +844,7 @@ bool cWebServer::Open(const util::cIPAddress& host, uint16_t port, const std::st
                           MHD_OPTION_HTTPS_MEM_KEY, server_key.c_str(),
                           MHD_OPTION_HTTPS_MEM_CERT, server_cert.c_str(),
                           MHD_OPTION_SOCK_ADDR, (struct sockaddr*)&sad,
+                          MHD_OPTION_LISTENING_ADDRESS_REUSE, 1, // Mainly for fuzz testing so that we can bind the port repeatedly in quick succession
                           MHD_OPTION_END);
   } else {
     std::cout<<"cWebServer::Run Starting server at http://"<<address<<":"<<port<<"/"<<std::endl;
@@ -854,6 +855,7 @@ bool cWebServer::Open(const util::cIPAddress& host, uint16_t port, const std::st
                           &_OnRequest, this,
                           MHD_OPTION_CONNECTION_TIMEOUT, (unsigned int)120,
                           MHD_OPTION_SOCK_ADDR, (struct sockaddr*)&sad,
+                          MHD_OPTION_LISTENING_ADDRESS_REUSE, 1, // Mainly for fuzz testing so that we can bind the port repeatedly in quick succession
                           MHD_OPTION_END);
   }
 

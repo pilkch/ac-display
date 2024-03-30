@@ -17,19 +17,26 @@
 namespace {
 
 const util::cIPAddress host(127, 0, 0, 1);
-const uint16_t port = 14327;
 
 const size_t BUFFER_LENGTH = 4 * 1024; // 4k read buffer
 
 }
 
-bool GnuTLSPerformRequest(std::string_view url, std::string_view user_agent, std::string_view server_certificate_path, std::ostringstream& output)
+int GnuTLSPullTimeOutCallback(gnutls_transport_ptr_t, unsigned int ms)
 {
+  (void)ms;
+  return 0;
+}
+
+bool GnuTLSPerformRequest(std::string_view url, uint16_t port, std::string_view user_agent, std::string_view server_certificate_path, std::ostringstream& output)
+{
+  std::cout<<"GnuTLSPerformRequest Connecting to "<<util::ToString(host)<<":"<<port<<std::endl;
+
   tcp_connection connection;
 
   gnutlsmm::client_session session;
 
-  session.init();
+  session.init(GNUTLS_NONBLOCK);
 
   // X509 stuff
   gnutlsmm::certificate_credentials credentials;
@@ -53,7 +60,11 @@ bool GnuTLSPerformRequest(std::string_view url, std::string_view user_agent, std
   connection.connect(host, port);
   session.set_transport_ptr((gnutls_transport_ptr_t)(ptrdiff_t)connection.get_sd());
 
+  // NOTE: TO use a timeout we need to provide a callback function, but becuase we pass GNUTLS_NONBLOCK to init above, then the callback is not called
+  session.set_transport_timeout_with_pull_timeout_function(500, GnuTLSPullTimeOutCallback);
+
   // Perform the TLS handshake
+  std::cout << "Performing handshake" << std::endl;
   const int result = session.handshake();
   if (result < 0) {
     std::cerr<<"Handshake failed, error "<<std::to_string(result)<<std::endl;
@@ -159,25 +170,34 @@ bool GnuTLSPerformRequest(std::string_view url, std::string_view user_agent, std
 }
 
 
-void PerformHTTPSGetRequest(std::span<const char> const fuzz_data, std::string_view server_certificate_path)
+bool PerformHTTPSGetRequest(std::span<const char> const fuzz_data, uint16_t port, std::string_view server_certificate_path)
 {
+  std::cout<<"PerformHTTPSGetRequest"<<std::endl;
+
   std::string user_agent("FuzzTester");
   std::ostringstream output;
-  GnuTLSPerformRequest(std::string((const char*)fuzz_data.data(), fuzz_data.size()), user_agent, server_certificate_path, output);
+  if (!GnuTLSPerformRequest(std::string((const char*)fuzz_data.data(), fuzz_data.size()), port, user_agent, server_certificate_path, output)) {
+    return true;
+  }
 
   std::cout<<"Output: "<<output.str()<<std::endl;
 
-  std::cout<<"PerformGetRequest returning"<<std::endl;
+  std::cout<<"PerformGetRequest returning true"<<std::endl;
+  return true;
 }
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t data_length)
 {
+  std::cout<<"LLVMFuzzerTestOneInput"<<std::endl;
+
   // libcurl can't cope with NULL or empty URLs
   if ((data == nullptr) || (data_length == 0)) {
     return -1;
   }
 
   gnutlsmm::helper gnutlsHelper;
+
+  const uint16_t port = 10000 + (util::GetTimeMS() % 10000); // Pseudorandom port
 
   // Create the web server
   acdisplay::cWebServerManager web_server_manager;
@@ -186,13 +206,14 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t data_length)
     return -1;
   }
 
-  PerformHTTPSGetRequest(std::span<const char>{(const char*)data, data_length},  "../server.crt");
+  while (!PerformHTTPSGetRequest(std::span<const char>{(const char*)data, data_length}, port, "../server.crt")) {
+  }
 
   std::cout<<"Shutting down server"<<std::endl;
   if (!web_server_manager.Destroy()) {
     std::cerr<<"Error destroying web server"<<std::endl;
   }
 
-  std::cout<<"returning 0"<<std::endl;
+  std::cout<<"LLVMFuzzerTestOneInput returning 0"<<std::endl;
   return 0;
 }

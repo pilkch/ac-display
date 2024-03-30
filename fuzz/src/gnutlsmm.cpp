@@ -270,8 +270,10 @@ void session::set_transport_pull_function(gnutls_pull_func pull_func)
   gnutls_transport_set_pull_function(s, pull_func);
 }
 
-void session::set_transport_pull_timeout_function(gnutls_pull_timeout_func pull_timeout_func)
+void session::set_transport_timeout_with_pull_timeout_function(unsigned int ms, gnutls_pull_timeout_func pull_timeout_func)
 {
+  gnutls_handshake_set_timeout(s, ms);
+
   gnutls_transport_set_pull_timeout_function(s, pull_timeout_func);
 }
 

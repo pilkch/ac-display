@@ -167,6 +167,9 @@ https://www.scribd.com/document/629251050/ACRemoteTelemetryDocumentation
 
 ### Fuzz the web server
 
+**Note: This is super slow because we have to create a web server each time, and perform one request, that isn't too slow, but then we have to clean up which means requesting that any connect client threads exit, waiting for them to exit and generally cleaning up**  
+Though, we can probably do some smarter checking in the web server clean up code and avoid waiting as long.
+
 ```bash
 mkdir -p ./corpus/fuzz_web_server_https/
 ./fuzz_web_server_https -runs=500000 -fork=1 -max_len=10000 ./corpus/fuzz_web_server_https ./sample_https_requests

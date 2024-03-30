@@ -108,7 +108,8 @@ public:
                 vec_push_func);
   void set_transport_pull_function(gnutls_pull_func
             pull_func);
-  void set_transport_pull_timeout_function (gnutls_pull_timeout_func pull_timeout_func);
+
+  void set_transport_timeout_with_pull_timeout_function(unsigned int ms, gnutls_pull_timeout_func pull_timeout_func);
 
   void set_user_ptr(void *ptr);
   void *get_user_ptr() const;
