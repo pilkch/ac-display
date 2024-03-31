@@ -5,6 +5,7 @@ Makefile
 
 ac-display
 acudp/acudp-*/
+fuzz/fuzz_web_server_https
 libmicrohttpd/libmicrohttpd-*/
 output
 unit_tests

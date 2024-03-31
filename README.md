@@ -121,6 +121,28 @@ sudo firewall-cmd --reload
 `https://192.168.0.3:7080/`
 2. If you are seeing a "Disconnected" message on the page then press F12 and click on "Console" to check if there are any useful error messages
 
+## Fuzzing
+
+### Fuzz the web server
+
+**Note: This is super slow because we have to create a web server each time, and perform one request, that isn't too slow, but then we have to clean up which means requesting that any connect client threads exit, waiting for them to exit and generally cleaning up**  
+Though, we can probably do some smarter checking in the web server clean up code and avoid waiting as long.
+
+```bash
+cd fuzz
+make
+mkdir -p ./corpus/fuzz_web_server_https/
+./fuzz_web_server_https -runs=500000 -fork=1 -max_len=10000 -workers=2 -fork=1 -shrink=1 ./corpus/fuzz_web_server_https
+```
+
+### Merge corpuses (Unless you create a new empty corpus directory you won't need this)
+
+Merges items from corpus 2, 3, ... into corpus 1
+```bash
+rm -f ./MergeStatusControlFile
+./fuzz_web_server_https corpus/fuzz_web_server_https/ corpus/new_items/ -merge=1 -merge_control_file=MergeStatusControlFile
+```
+
 ## Reference
 
 https://www.scribd.com/document/629251050/ACRemoteTelemetryDocumentation
