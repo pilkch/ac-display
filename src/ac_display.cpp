@@ -42,8 +42,14 @@ bool RunServer(const application::cSettings& settings)
     return false;
   }
 
-  std::cout<<"Press enter to shutdown the server"<<std::endl;
-  (void)getc(stdin);
+  if (settings.GetRunningInContainer()) {
+    while (true) {
+      util::msleep(500);
+    }
+  } else {
+    std::cout<<"Press enter to shutdown the server"<<std::endl;
+    (void)getc(stdin);
+  }
 
   std::cout<<"Shutting down server"<<std::endl;
   if (!web_server_manager.Destroy()) {

@@ -46,6 +46,27 @@ bool JSONParseString(struct json_object* json, const std::string& name, std::str
   return true;
 }
 
+bool JSONParseBool(struct json_object* json, const std::string& name, bool& out_value)
+{
+  out_value = false;
+
+  struct json_object* obj = json_object_object_get(json, name.c_str());
+  if (obj == nullptr) {
+    std::cerr<<name<<" not found"<<std::endl;
+    return false;
+  }
+
+  enum json_type type = json_object_get_type(obj);
+  if (type != json_type_boolean) {
+    std::cerr<<name<<" is not a bool"<<std::endl;
+    return false;
+  }
+
+  out_value = json_object_get_boolean(obj);
+
+  return true;
+}
+
 bool JSONParseUint16(struct json_object* json, const std::string& name, uint16_t& out_value)
 {
   out_value = 0;
@@ -76,6 +97,13 @@ bool JSONParseUint16(struct json_object* json, const std::string& name, uint16_t
 
 namespace application {
 
+cSettings::cSettings() :
+  running_in_container(false),
+  acudp_port(0),
+  https_port(0)
+{
+}
+
 bool cSettings::LoadFromFile(const std::string& sFilePath)
 {
   Clear();
@@ -101,6 +129,14 @@ bool cSettings::LoadFromFile(const std::string& sFilePath)
     if ((type_settings != json_type_object) || (strcmp(settings_key, "settings") != 0)) {
       std::cerr<<"settings object not found"<<std::endl;
       return false;
+    }
+
+    // Parse running in container (Optional)
+    {
+      bool value = 0;
+      if (JSONParseBool(settings_val, "running_in_container", value)) {
+        running_in_container = value;
+      }
     }
 
     // Parse acudp address
@@ -156,17 +192,18 @@ bool cSettings::LoadFromFile(const std::string& sFilePath)
   return IsValid();
 }
 
-bool cSettings::IsValid() const
+constexpr bool cSettings::IsValid() const
 {
   return (
     acudp_host.IsValid() && (acudp_port != 0) &&
-    https_host.IsValid() && (https_port != 0) &&
+    (https_host.IsValid() || (util::ToString(https_host) == "0.0.0.0")) && (https_port != 0) &&
     !https_private_key.empty() && !https_public_cert.empty()
   );
 }
 
 void cSettings::Clear()
 {
+  running_in_container = false;
   acudp_host.Clear();
   acudp_port = 0;
   https_host.Clear();

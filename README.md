@@ -100,19 +100,38 @@ openssl rsa -in server.key -out server.key
 openssl req -sha256 -new -key server.key -out server.csr -subj '/CN=localhost'
 openssl x509 -req -sha256 -days 365 -in server.csr -signkey server.key -out server.crt
 ```
-2. Set up a configuration.json file by copying the example and editing it (Set your source and destination addresses and ports, optionally set the the server.key and server.crt):
+2. Set up a configuration.json file by copying the example and editing it (Set your source and destination addresses and ports, use "0.0.0.0" for the "https_host" field if you are running ac-display in a container because it doesn't know about the external network interfaces, optionally set the the server.key and server.crt):
 ```bash
 cp configuration.json.example configuration.json
 vi configuration.json
 ```
-3. Open the port in firewalld (Replace 7080 with your port):
+3. Open ports in firewalld (Replace 9997 and 7080 with your ports):
 ```bash
-sudo firewall-cmd --permanent --add-port=7080/udp
+sudo firewall-cmd --permanent --add-port=9997/udp
+sudo firewall-cmd --permanent --add-port=7080/tcp
 sudo firewall-cmd --reload
 ```
-4. Run ac-display:
+
+#### Run ac-display natively
+
+1. Run ac-display:
 ```bash
 ./ac-display
+```
+
+#### OR, in a podman rootless container
+
+1. Install dependencies:
+```bash
+sudo dnf install podman slirp4netns
+```
+2. Build the container:
+```bash
+podman build --tag fedora:acdisplay -f ./Dockerfile
+```
+3. Run the container (Replace the IP and port with your own):
+```bash
+podman run -p 192.168.0.3:9997:9997/udp -p 192.168.0.3:7080:7080 --shm-size 256m --name acdisplay --rm fedora:acdisplay
 ```
 
 ### On a Monitor or Device on the Same Network (Second monitor/computer/phone/tablet)
@@ -137,7 +156,7 @@ mkdir -p ./corpus/fuzz_web_server_https/
 
 ### Merge corpuses (Unless you create a new empty corpus directory you won't need this)
 
-Merges items from corpus 2, 3, ... into corpus 1
+Merge items from corpus 2, 3, ... into corpus 1
 ```bash
 rm -f ./MergeStatusControlFile
 ./fuzz_web_server_https corpus/fuzz_web_server_https/ corpus/new_items/ -merge=1 -merge_control_file=MergeStatusControlFile

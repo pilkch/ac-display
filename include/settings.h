@@ -9,19 +9,23 @@ namespace application {
 
 class cSettings {
 public:
+  cSettings();
+
   bool LoadFromFile(const std::string& file_path);
 
-  bool IsValid() const;
+  constexpr bool IsValid() const;
   void Clear();
 
-  const util::cIPAddress& GetACUDPHost() const { return acudp_host; }
-  uint16_t GetACUDPPort() const { return acudp_port; }
-  const util::cIPAddress& GetHTTPSHost() const { return https_host; }
-  uint16_t GetHTTPSPort() const { return https_port; }
-  const std::string& GetHTTPSPrivateKey() const { return https_private_key; }
-  const std::string& GetHTTPSPublicCert() const { return https_public_cert; }
+  constexpr bool GetRunningInContainer() const { return running_in_container; }
+  constexpr const util::cIPAddress& GetACUDPHost() const { return acudp_host; }
+  constexpr uint16_t GetACUDPPort() const { return acudp_port; }
+  constexpr const util::cIPAddress& GetHTTPSHost() const { return https_host; }
+  constexpr uint16_t GetHTTPSPort() const { return https_port; }
+  constexpr const std::string& GetHTTPSPrivateKey() const { return https_private_key; }
+  constexpr const std::string& GetHTTPSPublicCert() const { return https_public_cert; }
 
 private:
+  bool running_in_container;
   util::cIPAddress acudp_host;
   uint16_t acudp_port;
   util::cIPAddress https_host;
