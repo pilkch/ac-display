@@ -8,6 +8,19 @@
 #include "debug_sine_wave_update_thread.h"
 #include "util.h"
 
+namespace {
+
+// Just a regular sort of idle RPM
+const float fRPMIdle = 800.0f;
+
+float GetRPMShiftPoint()
+{
+  std::lock_guard<std::mutex> lock(mutex_ac_data);
+  return ac_data.config_rpm_red_line;
+}
+
+}
+
 namespace acdisplay {
 
 class cDebugSineWaveUpdateThread {
@@ -19,17 +32,19 @@ void cDebugSineWaveUpdateThread::MainLoop()
 {
   std::cout<<"cDebugSineWaveUpdateThread::MainLoop"<<std::endl;
 
+  const float fRPMShiftPoint = GetRPMShiftPoint();
+
   const uint64_t start = util::GetTimeMS();
 
   while (true) {
     // Test with a sin wave
+    // This is a bit hacky, basically we just want a sin wave that cycles smoothly between idle RPM to the shift point RPM
     const uint64_t delta = util::GetTimeMS() - start;
     const float e = 0.001f * float(delta);
-    const float idle = 800.0f;
-    const float range = (6000.0f - 800.0f);
+    const float range = (fRPMShiftPoint - fRPMIdle);
     const float g = 0.5f * sinf(e);
-    const float h = idle + (0.5f * range) + (range * g);
-    const int rpm = util::clamp(int(h), int(idle), int(idle + range));
+    const float h = fRPMIdle + (0.5f * range) + (range * g);
+    const int rpm = util::clamp(int(h), int(fRPMIdle), int(fRPMIdle + range));
     //std::cout<<"delta: "<<delta<<", e: "<<e<<", g: "<<g<<", h: "<<h<<", rpm: "<<rpm<<std::endl;
     const float speed_kph = 150.0f + (100.0f * sinf(0.5f * e));
     //std::cout<<"rpm: "<<rpm<<", speed: "<<speed_kph<<std::endl;

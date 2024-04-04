@@ -566,6 +566,12 @@ function draw()
   }
 }
 
+function updateGaugeConfig(rpm_red_line, rpm_maximum, speedometer_red_line_kph, speedometer_maximum_kph)
+{
+  gauges[0] = createGauge(rpm_red_line, rpm_maximum, 1000.0, 1);
+  gauges[1] = createGauge(speedometer_red_line_kph, speedometer_maximum_kph, 10.0, 10);
+}
+
 function drawGaugesWithValues(rpm, speed_kph)
 {
   gauges[0].iTargetValue = rpm;

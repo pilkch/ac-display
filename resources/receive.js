@@ -116,6 +116,11 @@ function gear_index_to_letter(gear)
   return gear - 1;
 }
 
+var rpm_red_line = 5000.0;
+var rpm_maximum = 6000.0;
+var speedometer_red_line_kph = 280.0;
+var speedometer_maximum_kph = 300.0;
+
 // This is the event when the socket has received a message.
 // This will parse the message and execute the corresponding command (or add the message).
 function socket_onmessage(event)
@@ -124,14 +129,22 @@ function socket_onmessage(event)
     // Text message or command
     let message = event.data.split('|', 11);
     switch (message[0]) {
-      case 'car_info': {
+      case 'car_config': {
+        rpm_red_line = message[1];
+        rpm_maximum = message[2];
+        speedometer_red_line_kph = message[3];
+        speedometer_maximum_kph = message[4];
+        updateGaugeConfig(rpm_red_line, rpm_maximum, speedometer_red_line_kph, speedometer_maximum_kph);
+
+        break;
+      }
+      case 'car_update': {
         const rpm = message[5];
         const speed_kph = message[6];
 
         drawGaugesWithValues(rpm, speed_kph);
 
         //if (digital) {
-          const max_rpm = 6000.0;
           const dimColours = [
             "008000",
             "008000",
@@ -155,7 +168,10 @@ function socket_onmessage(event)
           for (let i = 0; i < 8; i++) {
             let led = document.getElementById('digital_led' + i);
             let colour = dimColours[i];
-            const segmentLowerLimit = max_rpm / 8.0;
+            // TODO: Make the first segment always on, then make the others only turn on for the last half of the RPM range, so essentially the lower limits for the segments might be something like:
+            // 0.0, 4000.0, 4500.0, 5000.0, 5500.0, 6000.0, 6500.0, 7000.0
+            // This would be less distracting and the lights would have a higher resolution for the second half where the shifts actually happen and we want more precision
+            const segmentLowerLimit = rpm_red_line / 8.0;
             // If the rpm is past our 1/8th of the gauge then "Turn on" the led by switching from the dim colour to the bright colour
             if (rpm > (segmentLowerLimit * i)) {
               colour = brightColours[i];

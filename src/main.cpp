@@ -2,8 +2,9 @@
 
 #include <sysexits.h>
 
-#include "settings.h"
+#include "ac_data.h"
 #include "ac_display.h"
+#include "settings.h"
 #include "version.h"
 
 namespace application {
@@ -46,6 +47,18 @@ int main(int argc, char* argv[])
   if (!settings.LoadFromFile("./configuration.json")) {
     std::cerr<<"Error parsing configuration.json"<<std::endl;
     return EXIT_FAILURE;
+  }
+
+
+  {
+    // Update the car configuration
+    // NOTE: Assetto Corsa doesn't provide any of these values so we have to make them up, I think AC expects you to be on the same machine and look it up in that car's config file?
+    // TODO: It might be nicer to put this in a car config file? Or allow the user to set it on the web page itself?
+    std::lock_guard<std::mutex> lock(mutex_ac_data);
+    ac_data.config_rpm_red_line = 6000.0f;
+    ac_data.config_rpm_maximum = 7500.0f;
+    ac_data.config_speedometer_red_line_kph = 250.0f;
+    ac_data.config_speedometer_maximum_kph = 300.0f;
   }
 
   const bool result = acdisplay::RunServer(settings);

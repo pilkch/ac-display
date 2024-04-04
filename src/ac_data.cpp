@@ -1,6 +1,11 @@
 #include "ac_data.h"
 
 cACData::cACData() :
+  config_rpm_red_line(6000.0f),
+  config_rpm_maximum(8500.0f),
+  config_speedometer_red_line_kph(280.0f),
+  config_speedometer_maximum_kph(300.0f),
+
   gear(1), // Neutral
   accelerator_0_to_1(0.0f),
   brake_0_to_1(0.0f),

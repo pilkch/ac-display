@@ -287,6 +287,8 @@ private:
   static void* ClientReceiveThreadFunction(void* cls);
   static void* ClientSendThreadFunction(void* cls);
 
+  static void SendWebSocketMessage(struct ConnectedUser& user, std::string_view message);
+  static void SendWebSocketCarConfig(struct ConnectedUser& user);
   static void SendWebSocketUpdate(struct ConnectedUser& user);
   static bool ReceiveWebSocket(struct ConnectedUser& cu, char* buf, size_t buf_len);
 };
@@ -379,6 +381,44 @@ void cWebSocketRequestHandler::UpgradeHandler(void* cls,
   pthread_detach(pt);
 }
 
+void cWebSocketRequestHandler::SendWebSocketMessage(struct ConnectedUser& user, std::string_view message)
+{
+  char* frame_data = nullptr;
+  size_t frame_len = 0;
+
+  const int status = MHD_websocket_encode_text(
+    user.ws,
+    message.data(), message.size(),
+    MHD_WEBSOCKET_FRAGMENTATION_NONE,
+    &frame_data, &frame_len,
+    nullptr
+  );
+  if (MHD_WEBSOCKET_STATUS_OK == status) {
+    network::SocketSendAll(user, std::string_view(frame_data, frame_len));
+
+    // Free the frame data
+    MHD_websocket_free(user.ws, frame_data);
+  }
+}
+
+void cWebSocketRequestHandler::SendWebSocketCarConfig(struct ConnectedUser& user)
+{
+  // Get a copy of the AC data
+  mutex_ac_data.lock();
+  const cACData copy = ac_data;
+  mutex_ac_data.unlock();
+
+  // Create our car config
+  const std::string message = "car_config|" +
+    std::to_string(copy.config_rpm_red_line) + "|" +
+    std::to_string(copy.config_rpm_maximum) + "|" +
+    std::to_string(copy.config_speedometer_red_line_kph) + "|" +
+    std::to_string(copy.config_speedometer_maximum_kph)
+  ;
+
+  SendWebSocketMessage(user, message);
+}
+
 void cWebSocketRequestHandler::SendWebSocketUpdate(struct ConnectedUser& user)
 {
   // Get a copy of the AC data
@@ -386,8 +426,8 @@ void cWebSocketRequestHandler::SendWebSocketUpdate(struct ConnectedUser& user)
   const cACData copy = ac_data;
   mutex_ac_data.unlock();
 
-  // Create our car info update
-  const std::string update = "car_info|" +
+  // Create our car update
+  const std::string message = "car_update|" +
     std::to_string(copy.gear) + "|" +
     std::to_string(copy.accelerator_0_to_1) + "|" +
     std::to_string(copy.brake_0_to_1) + "|" +
@@ -400,22 +440,7 @@ void cWebSocketRequestHandler::SendWebSocketUpdate(struct ConnectedUser& user)
     std::to_string(copy.lap_count)
   ;
 
-  char* frame_data = nullptr;
-  size_t frame_len = 0;
-
-  const int status = MHD_websocket_encode_text(
-    user.ws,
-    update.c_str(), update.length(),
-    MHD_WEBSOCKET_FRAGMENTATION_NONE,
-    &frame_data, &frame_len,
-    nullptr
-  );
-  if (MHD_WEBSOCKET_STATUS_OK == status) {
-    network::SocketSendAll(user, std::string_view(frame_data, frame_len));
-
-    // Free the frame data
-    MHD_websocket_free(user.ws, frame_data);
-  }
+  SendWebSocketMessage(user, message);
 }
 
 /**
@@ -434,6 +459,9 @@ void* cWebSocketRequestHandler::ClientSendThreadFunction(void* cls)
   std::cout<<"cWebSocketRequestHandler::ClientSendThreadFunction"<<std::endl;
 
   struct ConnectedUser& cu = *((ConnectedUser*)cls);
+
+  // Send the config once at the start
+  SendWebSocketCarConfig(cu);
 
   std::chrono::high_resolution_clock::time_point last = std::chrono::high_resolution_clock::now();
 
