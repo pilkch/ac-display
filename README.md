@@ -9,6 +9,9 @@
 
 ![F1 Style Dash](/images/latest_f1_style_preview.png)
 
+[![Demonstration Video on Youtube](/images/youtube_preview.png)](https://www.youtube.com/watch?v=C6pQ46W23wA)  
+[Demonstration Video on Youtube](https://www.youtube.com/watch?v=C6pQ46W23wA)
+
 
 ## Third Party Libraries and Resources
 
