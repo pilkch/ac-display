@@ -57,6 +57,16 @@ const std::string PAGE_NOT_FOUND = "404 Not Found";
 const std::string PAGE_INVALID_WEBSOCKET_REQUEST = "Invalid WebSocket request";
 
 
+enum MHD_Result Server404NotFoundResponse(struct MHD_Connection* connection)
+{
+  struct MHD_Response* response = MHD_create_response_from_buffer_static(PAGE_NOT_FOUND.length(), PAGE_NOT_FOUND.c_str());
+  const enum MHD_Result ret = MHD_queue_response(connection, MHD_HTTP_NOT_FOUND, response);
+  const char* mime = nullptr;
+  MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_ENCODING, mime);
+  MHD_destroy_response(response);
+  return ret;
+}
+
 }
 
 /**
@@ -975,9 +985,7 @@ enum MHD_Result cWebServer::_OnRequest(
   }
 
   // Unknown resource
-  struct MHD_Response* response = MHD_create_response_from_buffer_static(PAGE_NOT_FOUND.length(), PAGE_NOT_FOUND.c_str());
-  enum MHD_Result result = MHD_queue_response(connection, MHD_HTTP_NOT_FOUND, response);
-  MHD_destroy_response(response);
+  const enum MHD_Result result = Server404NotFoundResponse(connection);
 
   return result;
 }

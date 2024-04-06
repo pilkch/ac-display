@@ -281,8 +281,7 @@ bool GnuTLSPerformRequest(std::string_view url, uint16_t port, std::string_view 
   std::cout << "Handshake completed" << std::endl;
 
   std::cout << "Sending HTTP request" << std::endl;
-  const std::string request = "GET " + std::string(url) + " HTTP/1.0\r\n\r\n";
-  session.send(request.c_str(), request.length());
+  session.send(request.data(), request.length());
 
   std::cout << "Reading response" << std::endl;
 
@@ -379,12 +378,18 @@ bool GnuTLSPerformRequest(std::string_view url, uint16_t port, std::string_view 
   return true;
 }
 
+std::string HTTPSCreateRequest(std::string_view url)
+{
+  return "GET " + std::string(url.data(), url.size()) + " HTTP/1.0\r\n\r\n";
+}
+
 bool PerformHTTPSGetRequest(std::span<const char> const url, uint16_t port, std::string_view server_certificate_path, cHTTPResponse& out_response)
 {
   std::cout<<"PerformHTTPSGetRequest"<<std::endl;
 
   std::string user_agent("UnitTest");
-  if (!GnuTLSPerformRequest(std::string((const char*)url.data(), url.size()), port, user_agent, server_certificate_path, out_response)) {
+  const std::string request = HTTPSCreateRequest(std::string_view{url.data(), url.size()});
+  if (!GnuTLSPerformRequest(request, port, user_agent, server_certificate_path, out_response)) {
     return false;
   }
 
@@ -405,7 +410,7 @@ bool PerformHTTPSGetRequestString(const std::string& request, cHTTPResponse& out
   return PerformHTTPSGetRequest(request, port, "./server.crt", out_response);
 }
 
-
+// NOTE: I would split this up, but every new function recreates the web server, I'd rather just run a single instance
 TEST_F(WebServerTest, TestResources)
 {
   std::vector<char> expected_content_index_html;
@@ -492,5 +497,14 @@ TEST_F(WebServerTest, TestResources)
   EXPECT_EQ(404, response.headers.response_code);
   EXPECT_TRUE(PerformHTTPSGetRequestString("/etc/fstab", response));
   EXPECT_EQ(404, response.headers.response_code);
-}
+
+
+  // Bad requests
+  const std::string user_agent("UnitTest");
+  const std::string request_bad_url = "GET zvjiofkweklnewfjksdfiusdfjsif HTTP/1.0\r\n\r\n";
+  EXPECT_TRUE(GnuTLSPerformRequest(request_bad_url, port, user_agent, "./server.crt", response));
+  EXPECT_EQ(404, response.headers.response_code);
+  const std::string request_missing_url = "GET  HTTP/1.0\r\n\r\n";
+  EXPECT_TRUE(GnuTLSPerformRequest(request_missing_url, port, user_agent, "./server.crt", response));
+  EXPECT_EQ(404, response.headers.response_code);
 
