@@ -57,12 +57,32 @@ const std::string PAGE_NOT_FOUND = "404 Not Found";
 const std::string PAGE_INVALID_WEBSOCKET_REQUEST = "Invalid WebSocket request";
 
 
+
+void ServerAddSecurityHeaders(struct MHD_Response* response)
+{
+  const std::pair<std::string, std::string> security_headers[] = {
+    { "strict-transport-security", "max-age=31536000; includeSubDomains; preload" },
+    { "x-content-type-options", "nosniff" },
+    { "referrer-policy", "same-origin" },
+    { "content-security-policy", "frame-ancestors 'none'" },
+    { "permissions-policy", "" },
+    { "cross-origin-embedder-policy-report-only", "require-corp; report-to=\"default\"" },
+    { "cross-origin-opener-policy", "same-origin; report-to=\"default\"" },
+    { "cross-origin-opener-policy-report-only", "same-origin; report-to=\"default\"" },
+    { "cross-origin-resource-policy", "same-origin" }
+  };
+  for (auto&& header : security_headers) {
+    MHD_add_response_header(response, header.first.c_str(), header.second.c_str());
+  }
+}
+
 enum MHD_Result Server404NotFoundResponse(struct MHD_Connection* connection)
 {
   struct MHD_Response* response = MHD_create_response_from_buffer_static(PAGE_NOT_FOUND.length(), PAGE_NOT_FOUND.c_str());
   const enum MHD_Result ret = MHD_queue_response(connection, MHD_HTTP_NOT_FOUND, response);
   const char* mime = nullptr;
   MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_ENCODING, mime);
+  ServerAddSecurityHeaders(response);
   MHD_destroy_response(response);
   return ret;
 }
@@ -266,6 +286,7 @@ bool cStaticResourcesRequestHandler::HandleRequest(struct MHD_Connection* connec
         // This is the requested resource so create a response
         struct MHD_Response* response = MHD_create_response_from_buffer_static(resource.response_text.length(), resource.response_text.c_str());
         MHD_add_response_header(response, "Content-Type", resource.response_mime_type.c_str());
+        ServerAddSecurityHeaders(response);
         const int result = MHD_queue_response(connection, MHD_HTTP_OK, response);
         MHD_destroy_response(response);
         return (result == MHD_YES);

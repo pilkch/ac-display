@@ -130,6 +130,7 @@ public:
   uint16_t response_code;
   std::string content_type;
   size_t content_length;
+  std::map<std::string, std::string> raw_headers;
 };
 
 class cHTTPResponse {
@@ -221,6 +222,8 @@ bool ParseHeaders(std::string_view text, cHTTPHeaders& headers)
       }
 
       headers.content_length = value;
+    } else {
+      headers.raw_headers[std::string(key)] = std::string(str_value);
     }
 
     text.remove_prefix(new_line + 2);
@@ -233,7 +236,7 @@ bool ParseHeaders(std::string_view text, cHTTPHeaders& headers)
 }
 
 
-bool GnuTLSPerformRequest(std::string_view url, uint16_t port, std::string_view user_agent, std::string_view server_certificate_path, cHTTPResponse& out_response)
+bool GnuTLSPerformRequest(std::string_view request, uint16_t port, std::string_view user_agent, std::string_view server_certificate_path, cHTTPResponse& out_response)
 {
   std::cout<<"GnuTLSPerformRequest Connecting to "<<util::ToString(host)<<":"<<port<<std::endl;
 
@@ -508,3 +511,18 @@ TEST_F(WebServerTest, TestResources)
   EXPECT_TRUE(GnuTLSPerformRequest(request_missing_url, port, user_agent, "./server.crt", response));
   EXPECT_EQ(404, response.headers.response_code);
 
+
+  // Validate http headers
+  EXPECT_TRUE(PerformHTTPSGetRequestString("/", response));
+  EXPECT_EQ(200, response.headers.response_code);
+  EXPECT_STREQ("text/html", response.headers.content_type.c_str());
+  EXPECT_STREQ(response.headers.raw_headers["strict-transport-security"].c_str(), "max-age=31536000; includeSubDomains; preload");
+  EXPECT_STREQ(response.headers.raw_headers["x-content-type-options"].c_str(), "nosniff");
+  EXPECT_STREQ(response.headers.raw_headers["referrer-policy"].c_str(), "same-origin");
+  EXPECT_STREQ(response.headers.raw_headers["content-security-policy"].c_str(), "frame-ancestors 'none'");
+  EXPECT_STREQ(response.headers.raw_headers["permissions-policy"].c_str(), "");
+  EXPECT_STREQ(response.headers.raw_headers["cross-origin-embedder-policy-report-only"].c_str(), "require-corp; report-to=\"default\"");
+  EXPECT_STREQ(response.headers.raw_headers["cross-origin-opener-policy"].c_str(), "same-origin; report-to=\"default\"");
+  EXPECT_STREQ(response.headers.raw_headers["cross-origin-opener-policy-report-only"].c_str(), "same-origin; report-to=\"default\"");
+  EXPECT_STREQ(response.headers.raw_headers["cross-origin-resource-policy"].c_str(), "same-origin");
+}
