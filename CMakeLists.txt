@@ -20,6 +20,10 @@ ADD_DEFINITIONS("-DDEBUG")
 #ADD_DEFINITIONS("-DNDEBUG")
 
 # Select flags
+if(NOT "${CMAKE_CXX_STANDARD}")
+  set(CMAKE_CXX_STANDARD 20)
+endif()
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2")
 SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g")
 SET(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE}")
@@ -85,12 +89,12 @@ target_compile_definitions(unit_tests PUBLIC UNIT_TESTS)
 # therefore we can inherit all compiler options and library dependencies
 set_target_properties(ac-display PROPERTIES ENABLE_EXPORTS on)
 
-set_property(TARGET unit_tests PROPERTY INCLUDE_DIRECTORIES ${APP_INCLUDE_DIRECTORIES})
+set_property(TARGET unit_tests PROPERTY INCLUDE_DIRECTORIES ${APP_INCLUDE_DIRECTORIES} ${CMAKE_SOURCE_DIR}/test/include)
 
 target_include_directories(unit_tests SYSTEM PUBLIC ${MICROHTTPD_INCLUDE_DIR})
 target_link_directories(unit_tests PUBLIC ${MICROHTTPD_LIB_DIR})
 
-target_link_libraries(unit_tests PUBLIC ${GTEST_BOTH_LIBRARIES} acudp microhttpd microhttpd_ws json-c)
+target_link_libraries(unit_tests PUBLIC ${GTEST_BOTH_LIBRARIES} acudp gnutls gnutlsxx microhttpd microhttpd_ws json-c)
 
 target_include_directories(unit_tests PUBLIC
   ${GTEST_INCLUDE_DIRS} # doesn't do anything on Linux
