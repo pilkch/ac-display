@@ -7,6 +7,7 @@
 #include <string>
 #include <thread>
 
+#include "gnutlsmm.h"
 #include "gnutlsmm_request.h"
 #include "util.h"
 #include "web_server.h"
@@ -17,17 +18,13 @@ const util::cIPAddress host(127, 0, 0, 1);
 
 }
 
-std::string HTTPSCreateRequest(std::string_view url)
-{
-  return "GET " + std::string(url.data(), url.size()) + " HTTP/1.0\r\n\r\n";
-}
 
 bool PerformHTTPSGetRequest(std::span<const char> const fuzz_data, uint16_t port, std::string_view server_certificate_path)
 {
   std::cout<<"PerformHTTPSGetRequest"<<std::endl;
 
   std::string user_agent("FuzzTester");
-  const std::string request = HTTPSCreateRequest(std::string_view{fuzz_data.data(), fuzz_data.size()});
+  const std::string request(fuzz_data.data(), fuzz_data.size());
   if (!gnutlsmm::GnuTLSPerformRequest(host, port, request, user_agent, server_certificate_path)) {
     return true;
   }
@@ -35,6 +32,12 @@ bool PerformHTTPSGetRequest(std::span<const char> const fuzz_data, uint16_t port
   std::cout<<"PerformGetRequest returning true"<<std::endl;
   return true;
 }
+
+// This just fuzz tests the URL part of the HTTP request:
+// "<fuzz data>"
+// The fuzz data needs to be prompted with a corpus that starts off with some valid HTTP requests like:
+// "GET / HTTP/1.0\r\n\r\n"
+// "GET /not-found.txt HTTP/1.0\r\n\r\n"
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t data_length)
 {

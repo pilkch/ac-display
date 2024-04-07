@@ -153,8 +153,8 @@ Though, we can probably do some smarter checking in the web server clean up code
 ```bash
 cd fuzz
 make
-mkdir -p ./corpus/fuzz_web_server_https/
-./fuzz_web_server_https -runs=500000 -fork=1 -max_len=10000 -workers=2 -fork=1 -shrink=1 ./corpus/fuzz_web_server_https
+mkdir -p ./corpus/fuzz_web_server_https_url/
+./fuzz_web_server_https_url -runs=500000 -fork=1 -max_len=10000 -workers=2 -fork=1 -shrink=1 ./corpus/fuzz_web_server_https_url
 ```
 
 ### Merge corpuses (Unless you create a new empty corpus directory you won't need this)
@@ -162,7 +162,7 @@ mkdir -p ./corpus/fuzz_web_server_https/
 Merge items from corpus 2, 3, ... into corpus 1
 ```bash
 rm -f ./MergeStatusControlFile
-./fuzz_web_server_https corpus/fuzz_web_server_https/ corpus/new_items/ -merge=1 -merge_control_file=MergeStatusControlFile
+./fuzz_web_server_https_url corpus/fuzz_web_server_https_url/ corpus/new_items/ -merge=1 -merge_control_file=MergeStatusControlFile
 ```
 
 ## Reference
