@@ -2,12 +2,16 @@
 
 # Validate the acudp checksum
 ACUDP_VERSION="1.0.0"
-ACUDP_SHA256_CHECKSUM="86c21b07fda2d763b2cc70c2f842500fca85ba17516c46274ea54ce466b6838f"
-echo "$ACUDP_SHA256_CHECKSUM acudp-$ACUDP_VERSION.tar.gz" | sha256sum --check --status
+#ACUDP_SHA256_CHECKSUM="86c21b07fda2d763b2cc70c2f842500fca85ba17516c46274ea54ce466b6838f"
+#echo "$ACUDP_SHA256_CHECKSUM acudp-$ACUDP_VERSION.tar.gz" | sha256sum --check --status
 
 # Unpack acudp
-rm -rf "./acudp-$ACUDP_VERSION/"
-tar -xvf acudp-$ACUDP_VERSION.tar.gz
+#rm -rf "./acudp-$ACUDP_VERSION/"
+#tar -xvf acudp-$ACUDP_VERSION.tar.gz
+
+# Clone the branch of acudp that allows a configurable host and port, unfortunately it hasn't been merged in yet
+# https://github.com/vpicon/acudp/pull/1
+git clone --branch configurable-host-and-port --single-branch git@github.com:pilkch/acudp.git "./acudp-$ACUDP_VERSION/"
 
 # We want to install to the parent directory
 OUTPUT_DIR=$(realpath ../output)
