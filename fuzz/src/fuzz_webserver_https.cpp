@@ -28,7 +28,7 @@ int GnuTLSPullTimeOutCallback(gnutls_transport_ptr_t, unsigned int ms)
   return 0;
 }
 
-bool GnuTLSPerformRequest(std::string_view url, uint16_t port, std::string_view user_agent, std::string_view server_certificate_path, std::ostringstream& output)
+bool GnuTLSPerformRequest(std::string_view request, uint16_t port, std::string_view user_agent, std::string_view server_certificate_path)
 {
   std::cout<<"GnuTLSPerformRequest Connecting to "<<util::ToString(host)<<":"<<port<<std::endl;
 
@@ -74,13 +74,9 @@ bool GnuTLSPerformRequest(std::string_view url, uint16_t port, std::string_view 
   std::cout << "Handshake completed" << std::endl;
 
   std::cout << "Sending HTTP request" << std::endl;
-  const std::string request = "GET " + std::string(url) + " HTTP/1.0\r\n\r\n";
-  session.send(request.c_str(), request.length());
+  session.send(request.data(), request.size());
 
   std::cout << "Reading response" << std::endl;
-
-  // For debugging
-  //std::ofstream ofs("output.html", std::ofstream::trunc);
 
   char buffer[BUFFER_LENGTH + 1];
 
@@ -152,13 +148,9 @@ bool GnuTLSPerformRequest(std::string_view url, uint16_t port, std::string_view 
         reading_headers = false;
 
         std::cout<<"Reading content"<<std::endl;
-
-        // Add to the file content
-        //ofs.write(&received_so_far[i], received_so_far.length() - i);
       }
     } else {
       // Everything else is content
-      //ofs.write(buffer, bytes_read);
     }
   }
 
@@ -169,18 +161,20 @@ bool GnuTLSPerformRequest(std::string_view url, uint16_t port, std::string_view 
   return true;
 }
 
+std::string HTTPSCreateRequest(std::string_view url)
+{
+  return "GET " + std::string(url.data(), url.size()) + " HTTP/1.0\r\n\r\n";
+}
 
 bool PerformHTTPSGetRequest(std::span<const char> const fuzz_data, uint16_t port, std::string_view server_certificate_path)
 {
   std::cout<<"PerformHTTPSGetRequest"<<std::endl;
 
   std::string user_agent("FuzzTester");
-  std::ostringstream output;
-  if (!GnuTLSPerformRequest(std::string((const char*)fuzz_data.data(), fuzz_data.size()), port, user_agent, server_certificate_path, output)) {
+  const std::string request = HTTPSCreateRequest(std::string_view{fuzz_data.data(), fuzz_data.size()});
+  if (!GnuTLSPerformRequest(request, port, user_agent, server_certificate_path)) {
     return true;
   }
-
-  std::cout<<"Output: "<<output.str()<<std::endl;
 
   std::cout<<"PerformGetRequest returning true"<<std::endl;
   return true;
