@@ -154,7 +154,14 @@ Though, we can probably do some smarter checking in the web server clean up code
 cd fuzz
 make
 mkdir -p ./corpus/fuzz_web_server_https_url/
-./fuzz_web_server_https_url -runs=500000 -fork=1 -max_len=10000 -workers=2 -fork=1 -shrink=1 ./corpus/fuzz_web_server_https_url
+./fuzz_web_server_https_url -runs=500000 -max_len=10000 -workers=2 -fork=1 -shrink=1 ./corpus/fuzz_web_server_https_url
+```
+
+```bash
+cd fuzz
+make
+mkdir -p ./corpus/fuzz_web_server_https_request/
+./fuzz_web_server_https_request -runs=500000 -max_len=10000 -workers=2 -fork=1 -shrink=1 ./corpus/fuzz_web_server_https_request
 ```
 
 ### Merge corpuses (Unless you create a new empty corpus directory you won't need this)
