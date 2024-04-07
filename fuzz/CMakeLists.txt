@@ -33,7 +33,7 @@ set(MICROHTTPD_LIB_DIR "${PROJECT_SOURCE_DIR}/../output/lib")
 
 # Fuzz Web Server HTTPS
 
-ADD_EXECUTABLE(fuzz_web_server_https ${ac_display_sources} ./src/fuzz_webserver_https.cpp ./src/gnutlsmm.cpp ./src/tcp_connection.cpp)
+ADD_EXECUTABLE(fuzz_web_server_https ${ac_display_sources} ./src/fuzz_webserver_https.cpp ./src/gnutlsmm.cpp ./src/gnutlsmm_request.cpp ./src/tcp_connection.cpp)
 
 target_compile_options(fuzz_web_server_https PRIVATE -fsanitize=address,fuzzer)
 target_link_options(fuzz_web_server_https PRIVATE -fsanitize=address,fuzzer)
