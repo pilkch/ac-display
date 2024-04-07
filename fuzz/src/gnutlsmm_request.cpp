@@ -101,27 +101,23 @@ bool GnuTLSPerformRequest(const util::cIPAddress& host, uint16_t port, std::stri
     // Check if there is already something in the gnutls buffers
     if (session.check_pending() == 0) {
       // There was no gnutls data ready, check the socket
-      switch (p.poll(timeout_ms)) {
-        case POLL_READ_RESULT::DATA_READY: {
-          // Check if bytes are actually available (Otherwise if we try to read again the gnutls session object goes into a bad state and gnutlsxx throws an exception)
-          if (connection.get_bytes_available() == 0) {
-            //std::cout<<"but no bytes available"<<std::endl;
-            no_bytes_retries++;
-            // Don't hog the CPU
-            util::msleep(retries_timeout_ms);
-            continue;
-          }
-        }
-        case POLL_READ_RESULT::ERROR: {
-          break;
-        }
-        case POLL_READ_RESULT::TIMED_OUT: {
-          // We hit the 2 second timeout, we are probably done
-          break;
-        }
+      const POLL_READ_RESULT result = p.poll(timeout_ms);
+      if ((result == POLL_READ_RESULT::ERROR) || (result == POLL_READ_RESULT::TIMED_OUT)) {
+        // There was an error or we hit the timeout, we are probably done
+        break;
+      }
+
+      // Check if bytes are actually available (Otherwise if we try to read again the gnutls session object goes into a bad state and gnutlsxx throws an exception)
+      if (connection.get_bytes_available() == 0) {
+        //std::cout<<"but no bytes available"<<std::endl;
+        no_bytes_retries++;
+        // Don't hog the CPU
+        util::msleep(retries_timeout_ms);
+        continue;
       }
     }
 
+    std::cout<<"Reading from session"<<std::endl;
     const ssize_t result = session.recv(buffer, BUFFER_LENGTH);
     if (result == 0) {
       std::cout<<"Peer has closed the TLS connection"<<std::endl;
