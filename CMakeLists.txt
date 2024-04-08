@@ -20,10 +20,21 @@ ADD_DEFINITIONS("-DDEBUG")
 #ADD_DEFINITIONS("-DNDEBUG")
 
 # Select flags
-if(NOT "${CMAKE_CXX_STANDARD}")
-  set(CMAKE_CXX_STANDARD 20)
-endif()
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
+
+IF(UNIX)
+  # Add definitions, compiler switches, etc.
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -W -Wextra -Werror -Wformat -Wformat-y2k -Winit-self -Wstack-protector -Wunknown-pragmas -Wundef -Wwrite-strings -Wno-unused-parameter -Wpointer-arith -Wno-switch -Woverloaded-virtual -Wno-stack-protector -Wmissing-include-dirs -Wuninitialized -O2")
+
+  SET(COMPILER_PLATFORM_DEFINES "-D__LINUX__")
+ENDIF()
+
+IF(WIN32)
+  SET(COMPILER_PLATFORM_DEFINES "-DUNICODE -D_UNICODE -DNOMINMAX")
+ENDIF()
+
 SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2")
 SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g")
 SET(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE}")
@@ -39,19 +50,9 @@ SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS_DEBUG}")
 SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS_DEBUG}")
 ENDIF()
 
-IF(UNIX)
-  # Add definitions, compiler switches, etc.
-  SET(COMPILER_COMMON_FLAGS "-std=c++20 -Wall -W -Wextra -Werror -Wformat -Wformat-y2k -Winit-self -Wstack-protector -Wunknown-pragmas -Wundef -Wwrite-strings -Wno-unused-parameter -Wpointer-arith -Wno-switch -Woverloaded-virtual -Wno-stack-protector -Wmissing-include-dirs -Wuninitialized -O2")
-
-  SET(COMPILER_PLATFORM_DEFINES "-D__LINUX__")
-ENDIF()
-
 IF(WIN32)
-  SET(COMPILER_PLATFORM_DEFINES "-DUNICODE -D_UNICODE -DNOMINMAX")
+  target_compile_options(ac-display PUBLIC "${COMPILER_PLATFORM_DEFINES}")
 ENDIF()
-
-target_compile_options(ac-display PUBLIC "${COMPILER_PLATFORM_DEFINES} ${COMPILER_COMMON_FLAGS}")
-
 
 ###############################################################################
 ## dependencies ###############################################################

@@ -230,7 +230,7 @@ bool ParseHeaders(std::string_view text, cHTTPHeaders& headers)
   }
 
   return (
-    (headers.response_code != 0),
+    (headers.response_code != 0) &&
     !headers.content_type.empty()
   );
 }
