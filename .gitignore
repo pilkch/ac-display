@@ -4,6 +4,7 @@ cmake_install.cmake
 Makefile
 
 ac-display
+acudp/acudp-configurable-host-and-port.zip
 acudp/acudp-*/
 fuzz/fuzz_web_server_https_request
 fuzz/fuzz_web_server_https_url
