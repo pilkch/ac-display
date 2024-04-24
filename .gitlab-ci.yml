@@ -1,0 +1,67 @@
+stages:
+  - dependencies
+  - build
+  - tests-and-checks
+
+default:
+  before_script:
+    - dnf install -y automake autoconf libtool texinfo json-c-devel libxml2-devel
+
+dependencies-acudp:
+  stage: dependencies
+  tags:
+    - linux
+    - cpp
+    - make
+  script:
+    - dnf install -y git
+    - (cd acudp && ./build.sh)
+  artifacts:
+    untracked: true
+
+dependencies-libmicrohttpd:
+  stage: dependencies
+  tags:
+    - linux
+    - cpp
+    - make
+  script:
+    - (cd libmicrohttpd && ./build.sh)
+  artifacts:
+    untracked: true
+
+build:
+  stage: build
+  needs: [dependencies-acudp, dependencies-libmicrohttpd]
+  tags:
+    - linux
+    - cpp
+    - make
+  script:
+    - cmake .
+    - make -j
+  artifacts:
+    untracked: true
+
+unit-test:
+  stage: tests-and-checks
+  needs: [build]
+  tags:
+    - linux
+  script:
+    - ./unit_tests
+
+check-resources:
+  stage: tests-and-checks
+  needs: [build]
+  tags:
+    - linux
+  script:
+    - xmllint --noout resources/index.html
+    # TODO: Validate css
+    # TODO: Validate javascript
+    - dnf install -y pip python3-pip && pip install svgcheck
+    - for file in resources/*.svg
+      do 
+        svgcheck "$file"
+      done
