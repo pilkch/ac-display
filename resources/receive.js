@@ -1,12 +1,14 @@
 'use strict';
 
+import { drawGaugesWithValues } from './dial.js'; 
+
 let baseUrl;
 let socket;
 
 window.addEventListener('load', window_onload);
 
 // This is the main procedure which connects the first socket
-function window_onload(event)
+function window_onload( /*event*/ )
 {
   // Show the disconnected message, it will be hidden if we connect successfully
   showErrorDisconnected();
@@ -28,7 +30,7 @@ function websocket_connect()
 }
 
 // This is the event when the socket has established a connection
-function socket_onopen(event)
+function socket_onopen( /*event*/ )
 {
   hideError();
 }

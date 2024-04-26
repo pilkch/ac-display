@@ -11,6 +11,9 @@ export default [
       sourceType: "module",
       globals: {
         ...globals.browser,
+        'event': true,
+        'toggleFullscreen': true,
+        'updateGaugeConfig': true
       }
     }
   },
