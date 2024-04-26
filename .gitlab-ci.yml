@@ -65,5 +65,18 @@ unit-test:
     # TODO: Validate html5, xmllint doesn't know about html5 so it complains about main/article/canvas
     #- xmllint --html --noout resources/index.html
     # TODO: Validate css
-    # TODO: Validate javascript
     # TODO: Validate svg
+
+check-javascript-json:
+  stage: tests-and-checks
+  needs: [build]
+  image: node:latest
+  before_script:
+    # https://stackoverflow.com/a/43318794
+    # Install ESLint in this docker container
+    - npm install -g eslint
+    # For the eslint.config.mjs configuration file
+    - npm install @eslint/js eslint-plugin-jsonc -D
+  script:
+    # Run ESLint
+    - ESLINT_USE_FLAT_CONFIG=true eslint --config eslint.config.mjs .
