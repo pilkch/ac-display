@@ -34,7 +34,6 @@ var startRotationDegrees = -60.0; // Down and to the left
 var arcRotationDegrees = 180.0 + 60.0; // Down and to the right
 var endRotationDegrees = startRotationDegrees + arcRotationDegrees;
 
-const backgroundColour = 'rgb(0,0,0)';
 const foregroundColourWhite = 'rgb(220,220,220)';
 const foregroundColourRed = 'rgb(255,0,0)';
 
@@ -81,12 +80,6 @@ var job = null;
 function degToRad(angle)
 {
   return ((angle * Math.PI) / 180.0);
-}
-
-// Radians to degree
-function radToDeg(angle)
-{
-  return ((angle * 180.0) / Math.PI);
 }
 
 function drawLine(options, line)
@@ -227,7 +220,7 @@ function applyDefaultContextSettings(options)
   options.ctx.fillStyle = foregroundColourWhite;
 }
 
-function drawSmallTickMarks(options, gauge)
+/*function drawSmallTickMarks(options, gauge)
 {
   var iTick = 0,
       iTickRad = 0,
@@ -243,12 +236,11 @@ function drawSmallTickMarks(options, gauge)
 
     iTickRad = degToRad(iTick);
 
-    /* Calculate the X and Y of both ends of the
-    * line I need to draw at angle represented at Tick.
-    * The aim is to draw the a line starting on the 
-    * coloured arc and continueing towards the outer edge
-    * in the direction from the center of the gauge. 
-    */
+    // Calculate the X and Y of both ends of the
+    // line I need to draw at angle represented at Tick.
+    // The aim is to draw the a line starting on the 
+    // coloured arc and continueing towards the outer edge
+    // in the direction from the center of the gauge. 
 
     fromX = options.center.X - (Math.cos(iTickRad) * options.levelRadius);
     fromY = options.center.Y - (Math.sin(iTickRad) * options.levelRadius);
@@ -261,7 +253,7 @@ function drawSmallTickMarks(options, gauge)
     // Draw the line
     drawLine(options, line);
   }
-}
+}*/
 
 function drawHalfTickMarks(options, gauge)
 {
@@ -536,6 +528,9 @@ function drawGauge(gauge, options)
 
 function draw()
 {
+  // Reset the timer
+  clearTimeout(job);
+
   /* Main entry point for drawing the gauge
   * If canvas is not support alert the user.
   */
@@ -566,16 +561,17 @@ function draw()
   }
 }
 
-function updateGaugeConfig(rpm_red_line, rpm_maximum, speedometer_red_line_kph, speedometer_maximum_kph)
+
+export function updateGaugeConfig(rpm_red_line, rpm_maximum, speedometer_red_line_kph, speedometer_maximum_kph)
 {
   gauges[0] = createGauge(rpm_red_line, rpm_maximum, 1000.0, 1);
   gauges[1] = createGauge(speedometer_red_line_kph, speedometer_maximum_kph, 10.0, 10);
 }
 
-function drawGaugesWithValues(rpm, speed_kph)
+export function drawGaugesWithValues(rpm, speed_kph)
 {
   gauges[0].iTargetValue = rpm;
   gauges[1].iTargetValue = speed_kph;
 
-  job = setTimeout("draw()", 5);
+  job = setTimeout(draw, 5);
 }

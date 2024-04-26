@@ -29,7 +29,7 @@ function closeFullscreen()
   }
 }
 
-function toggleFullscreen()
+export function toggleFullscreen()
 {
   // https://developer.mozilla.org/en-US/docs/Web/API/Document/fullscreenElement
   const bIsFullscreen = (document.fullscreenElement != null);
