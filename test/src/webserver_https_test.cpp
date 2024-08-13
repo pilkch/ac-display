@@ -516,13 +516,13 @@ TEST_F(WebServerTest, TestResources)
   EXPECT_TRUE(PerformHTTPSGetRequestString("/", response));
   EXPECT_EQ(200, response.headers.response_code);
   EXPECT_STREQ("text/html", response.headers.content_type.c_str());
-  EXPECT_STREQ(response.headers.raw_headers["strict-transport-security"].c_str(), "max-age=31536000; includeSubDomains; preload");
-  EXPECT_STREQ(response.headers.raw_headers["x-content-type-options"].c_str(), "nosniff");
-  EXPECT_STREQ(response.headers.raw_headers["referrer-policy"].c_str(), "same-origin");
-  EXPECT_STREQ(response.headers.raw_headers["content-security-policy"].c_str(), "frame-ancestors 'none'");
-  EXPECT_STREQ(response.headers.raw_headers["permissions-policy"].c_str(), "");
-  EXPECT_STREQ(response.headers.raw_headers["cross-origin-embedder-policy-report-only"].c_str(), "require-corp; report-to=\"default\"");
-  EXPECT_STREQ(response.headers.raw_headers["cross-origin-opener-policy"].c_str(), "same-origin; report-to=\"default\"");
-  EXPECT_STREQ(response.headers.raw_headers["cross-origin-opener-policy-report-only"].c_str(), "same-origin; report-to=\"default\"");
-  EXPECT_STREQ(response.headers.raw_headers["cross-origin-resource-policy"].c_str(), "same-origin");
+  EXPECT_STREQ(response.headers.raw_headers["Strict-Transport-Security"].c_str(), "max-age=31536000; includeSubDomains; preload");
+  EXPECT_STREQ(response.headers.raw_headers["Content-Security-Policy"].c_str(), "frame-ancestors 'none'");
+  EXPECT_STREQ(response.headers.raw_headers["X-Content-Type-Options"].c_str(), "nosniff");
+  EXPECT_STREQ(response.headers.raw_headers["Referrer-Policy"].c_str(), "no-referrer");
+  EXPECT_STREQ(response.headers.raw_headers["Permissions-Policy"].c_str(), "accelerometer=(),autoplay=(),camera=(),cross-origin-isolated=(),display-capture=(),encrypted-media=(),fullscreen=(),geolocation=(),gyroscope=(),keyboard-map=(),magnetometer=(),microphone=(),midi=(),payment=(),picture-in-picture=(),publickey-credentials-get=(),screen-wake-lock=(),sync-xhr=(self),usb=(),web-share=(),xr-spatial-tracking=(),clipboard-read=(),clipboard-write=(),gamepad=(),hid=(),idle-detection=(),interest-cohort=(),serial=(),unload=()");
+  EXPECT_STREQ(response.headers.raw_headers["Cross-Origin-Embedder-Policy"].c_str(), "require-corp; report-to=\"default\"");
+  EXPECT_STREQ(response.headers.raw_headers["Cross-Origin-Opener-Policy"].c_str(), "same-origin; report-to=\"default\"");
+  EXPECT_STREQ(response.headers.raw_headers["Cross-Origin-Resource-Policy"].c_str(), "same-origin");
+  EXPECT_STREQ(response.headers.raw_headers["Cache-Control"].c_str(), "must-revalidate, max-age=600");
 }

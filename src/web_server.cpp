@@ -22,6 +22,8 @@
 #include <microhttpd.h>
 #include <microhttpd_ws.h>
 
+#include <security_headers.h>
+
 #include "ac_data.h"
 #include "util.h"
 #include "web_server.h"
@@ -60,19 +62,12 @@ const std::string PAGE_INVALID_WEBSOCKET_REQUEST = "Invalid WebSocket request";
 
 void ServerAddSecurityHeaders(struct MHD_Response* response)
 {
-  const std::pair<std::string, std::string> security_headers[] = {
-    { "strict-transport-security", "max-age=31536000; includeSubDomains; preload" },
-    { "x-content-type-options", "nosniff" },
-    { "referrer-policy", "same-origin" },
-    { "content-security-policy", "frame-ancestors 'none'" },
-    { "permissions-policy", "" },
-    { "cross-origin-embedder-policy-report-only", "require-corp; report-to=\"default\"" },
-    { "cross-origin-opener-policy", "same-origin; report-to=\"default\"" },
-    { "cross-origin-opener-policy-report-only", "same-origin; report-to=\"default\"" },
-    { "cross-origin-resource-policy", "same-origin" }
-  };
-  for (auto&& header : security_headers) {
-    MHD_add_response_header(response, header.first.c_str(), header.second.c_str());
+  security_headers::policy p;
+  p.strict_transport_security_max_age_days = 365;
+  static const auto&& headers = security_headers::GetSecurityHeaders(p);
+
+  for (auto&& header : headers) {
+    MHD_add_response_header(response, header.name.c_str(), header.value.c_str());
   }
 }
 

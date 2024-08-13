@@ -38,6 +38,13 @@ Fedora:
 sudo dnf install automake autoconf libtool texinfo gcc-c++ cmake json-c-devel libxml2-devel gtest-devel
 ```
 
+Clone:
+```bash
+git clone git@github.com:pilkch/libsecurityheaders.git
+git clone git@github.com:pilkch/ac-display.git
+cd ac-display
+```
+
 Build:
 ```bash
 $ (cd acudp && ./build.sh)

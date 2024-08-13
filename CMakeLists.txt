@@ -58,6 +58,9 @@ ENDIF()
 ## dependencies ###############################################################
 ###############################################################################
 
+# libsecurityheaders library
+set(SECURITYHEADERS_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/../libsecurityheaders/include")
+
 # System microhttpd library
 #set(MICROHTTPD_LIBRARY "-lmicrohttpd")
 #find_package(MICROHTTPD REQUIRED)
@@ -66,7 +69,7 @@ ENDIF()
 set(MICROHTTPD_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/output/include")
 set(MICROHTTPD_LIB_DIR "${PROJECT_SOURCE_DIR}/output/lib")
 
-target_include_directories(ac-display SYSTEM PUBLIC ${MICROHTTPD_INCLUDE_DIR})
+target_include_directories(ac-display SYSTEM PUBLIC ${MICROHTTPD_INCLUDE_DIR} ${SECURITYHEADERS_INCLUDE_DIR})
 target_link_directories(ac-display PUBLIC ${MICROHTTPD_LIB_DIR})
 target_link_libraries(ac-display PUBLIC acudp microhttpd microhttpd_ws json-c)
 
@@ -92,7 +95,7 @@ set_target_properties(ac-display PROPERTIES ENABLE_EXPORTS on)
 
 set_property(TARGET unit_tests PROPERTY INCLUDE_DIRECTORIES ${APP_INCLUDE_DIRECTORIES} ${CMAKE_SOURCE_DIR}/test/include)
 
-target_include_directories(unit_tests SYSTEM PUBLIC ${MICROHTTPD_INCLUDE_DIR})
+target_include_directories(unit_tests SYSTEM PUBLIC ${MICROHTTPD_INCLUDE_DIR} ${SECURITYHEADERS_INCLUDE_DIR})
 target_link_directories(unit_tests PUBLIC ${MICROHTTPD_LIB_DIR})
 
 target_link_libraries(unit_tests PUBLIC ${GTEST_BOTH_LIBRARIES} acudp gnutls gnutlsxx microhttpd microhttpd_ws json-c)
