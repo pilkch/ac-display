@@ -59,7 +59,7 @@ ENDIF()
 ###############################################################################
 
 # libsecurityheaders library
-set(SECURITYHEADERS_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/../libsecurityheaders/include")
+set(SECURITYHEADERS_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/../libsecurityheaders/include" CACHE STRING "libsecurityheaders include path")
 
 # System microhttpd library
 #set(MICROHTTPD_LIBRARY "-lmicrohttpd")

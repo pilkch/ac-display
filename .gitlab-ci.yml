@@ -7,6 +7,23 @@ default:
   before_script:
     - dnf install -y automake autoconf libtool texinfo json-c-devel libxml2-devel gnutls-devel
 
+dependencies-libsecurityheaders:
+  stage: dependencies
+  tags:
+    - linux
+    - cpp
+    - make
+  script:
+    - dnf install -y git
+    # TODO: Use a real certificate for gitlab then we don't have to ignore self signed certificates
+    # NOTE: I always forget, but you have to add this project to the list of projects that are allowed to use it from an access token in
+    # the gitlab web interface: libsecurityheaders > CI/CD > Token Access > Allow access to this project with a CI_JOB_TOKEN
+    - git -c http.sslVerify=false clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.network.home:2443/dev/public/libsecurityheaders.git
+    # HACK: Remove the .git directory in the libsecurityheaders folder so that it is copied to further stages (Otherwise it deletes everything below it between stages)
+    - rm -rf libsecurityheaders/.git/
+  artifacts:
+    untracked: true
+
 dependencies-acudp:
   stage: dependencies
   tags:
@@ -32,13 +49,13 @@ dependencies-libmicrohttpd:
 
 build:
   stage: build
-  needs: [dependencies-acudp, dependencies-libmicrohttpd]
+  needs: [dependencies-libsecurityheaders, dependencies-acudp, dependencies-libmicrohttpd]
   tags:
     - linux
     - cpp
     - make
   script:
-    - cmake .
+    - cmake . -D SECURITYHEADERS_INCLUDE_DIR=$PWD/libsecurityheaders/include
     - make -j
   artifacts:
     untracked: true
