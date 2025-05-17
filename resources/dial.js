@@ -1,7 +1,5 @@
 /*eslint strict: ["error", "global"]*/
 
-"use strict";
-
 (function () {
   // resize the canvas to fill browser window dynamically
   window.addEventListener('resize', resizeCanvas, false);

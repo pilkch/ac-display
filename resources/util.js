@@ -1,7 +1,5 @@
 /*eslint strict: ["error", "global"]*/
 
-"use strict";
-
 function openFullscreen()
 {
   // Get an element to show fullscreen (We just use the whole document)
