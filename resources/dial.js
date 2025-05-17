@@ -1,8 +1,8 @@
-/*jslint plusplus: true, sloppy: true, indent: 2 */
-(function () {
-  "use strict";
-  // this function is strict...
+/*eslint strict: ["error", "global"]*/
 
+"use strict";
+
+(function () {
   // resize the canvas to fill browser window dynamically
   window.addEventListener('resize', resizeCanvas, false);
 

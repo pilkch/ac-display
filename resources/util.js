@@ -1,7 +1,7 @@
-/*jslint plusplus: true, sloppy: true, indent: 2 */
-(function () {
-  "use strict";
-}());
+/*eslint strict: ["error", "global"]*/
+
+"use strict";
+
 
 function openFullscreen()
 {

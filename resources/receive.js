@@ -1,4 +1,6 @@
-'use strict';
+/*eslint strict: ["error", "global"]*/
+
+"use strict";
 
 import { updateGaugeConfig, drawGaugesWithValues } from './dial.js'; 
 
