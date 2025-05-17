@@ -1,13 +1,11 @@
-/*jslint plusplus: true, sloppy: true, indent: 2 */
-(function () {
-  "use strict";
-  // this function is strict...
+/*eslint strict: ["error", "global"]*/
 
+(function () {
   // resize the canvas to fill browser window dynamically
   window.addEventListener('resize', resizeCanvas, false);
 
   function resizeCanvas() {
-    var canvas = document.getElementById('gauges_canvas');
+    let canvas = document.getElementById('gauges_canvas');
 
     // Is that canvas ok?
     if ((canvas === null) || (!canvas.getContext)) {
@@ -30,9 +28,9 @@
 // This is originally based on the code in this awesome article by Ray Hammond:
 // https://geeksretreat.wordpress.com/2012/04/13/making-a-speedometer-using-html5s-canvas/
 
-var startRotationDegrees = -60.0; // Down and to the left
-var arcRotationDegrees = 180.0 + 60.0; // Down and to the right
-var endRotationDegrees = startRotationDegrees + arcRotationDegrees;
+const startRotationDegrees = -60.0; // Down and to the left
+const arcRotationDegrees = 180.0 + 60.0; // Down and to the right
+const endRotationDegrees = startRotationDegrees + arcRotationDegrees;
 
 const foregroundColourWhite = 'rgb(220,220,220)';
 const foregroundColourRed = 'rgb(255,0,0)';
@@ -69,12 +67,12 @@ function createGauge(_redlineRPM, _maximumRPM, majorTicksFrequency, textStep)
   }
 }
 
-var gauges = [
+let gauges = [
   createGauge(6000.0, 7500.0, 1000.0, 1),
   createGauge(250.0, 300.0, 10.0, 10)
 ];
 
-var job = null;
+let job = null;
 
 // Degrees to radians
 function degToRad(angle)
@@ -185,7 +183,7 @@ function drawBackground(options)
   * blend the edges of the metallic edge and
   * black background
   */
-  var i = 0;
+  let i = 0;
 
   options.ctx.globalAlpha = 0.2;
   options.ctx.fillStyle = "rgb(0,0,0)";
@@ -222,7 +220,7 @@ function applyDefaultContextSettings(options)
 
 /*function drawSmallTickMarks(options, gauge)
 {
-  var iTick = 0,
+  let iTick = 0,
       iTickRad = 0,
       fromX,
       fromY,
@@ -257,7 +255,7 @@ function applyDefaultContextSettings(options)
 
 function drawHalfTickMarks(options, gauge)
 {
-  var iTick = 0,
+  let iTick = 0,
       iTickRad = 0,
       fromX,
       fromY,
@@ -294,7 +292,7 @@ function drawHalfTickMarks(options, gauge)
 
 function drawLargeTickMarks(options, gauge)
 {
-  var iTick = 0,
+  let iTick = 0,
         iTickRad = 0,
         fromX,
         fromY,
@@ -342,7 +340,7 @@ function drawTextMarkers(options, gauge)
   * arc drawn every 10 mph from 10 degrees to
   * 170 degrees.
   */
-  var iTick = 0.0,
+  let iTick = 0.0,
       iTickToPrint = 0;
   const textRadius = 0.8 * options.gaugeOptions.radius;
 
@@ -355,7 +353,7 @@ function drawTextMarkers(options, gauge)
 
   options.ctx.beginPath();
 
-  var bIntoRedLine = false;
+  let bIntoRedLine = false;
 
   for (iTick = startRotationDegrees; iTick < endRotationDegrees; iTick += gauge.arcMajorTickDegrees) {
 
@@ -417,7 +415,7 @@ function drawNeedleDial(options, alphaValue, strokeStyle, fillStyle)
   /* Draws the metallic dial that covers the base of the
   * needle.
   */
-  var i = 0;
+  let i = 0;
 
   options.ctx.globalAlpha = alphaValue;
   options.ctx.lineWidth = 3;
@@ -447,11 +445,12 @@ function drawNeedle(options, gauge)
   const iValueAsAngle = startRotationDegrees + ((gauge.iTargetValue / gauge.maximumRPM) * arcRotationDegrees);
   const iValueAsAngleRad = degToRad(iValueAsAngle);
 
-  var fromX = options.center.X - (Math.cos(iValueAsAngleRad) * options.needleBaseRadius),
-      fromY = options.center.Y - (Math.sin(iValueAsAngleRad) * options.needleBaseRadius),
-      toX = options.center.X - (Math.cos(iValueAsAngleRad) * options.needleLength),
-      toY = options.center.Y - (Math.sin(iValueAsAngleRad) * options.needleLength),
-      line = createLine(fromX, fromY, toX, toY, foregroundColourRed, 5, 1.0);
+  const fromX = options.center.X - (Math.cos(iValueAsAngleRad) * options.needleBaseRadius);
+  const fromY = options.center.Y - (Math.sin(iValueAsAngleRad) * options.needleBaseRadius);
+  const toX = options.center.X - (Math.cos(iValueAsAngleRad) * options.needleLength);
+  const toY = options.center.Y - (Math.sin(iValueAsAngleRad) * options.needleLength);
+
+  let line = createLine(fromX, fromY, toX, toY, foregroundColourRed, 5, 1.0);
 
   drawLine(options, line);
 
@@ -535,7 +534,7 @@ function draw()
   * If canvas is not support alert the user.
   */
 
-  var canvas = document.getElementById('gauges_canvas');
+  let canvas = document.getElementById('gauges_canvas');
 
   // Canvas good?
   if ((canvas === null) || (!canvas.getContext)) {
@@ -543,12 +542,12 @@ function draw()
     return;
   }
 
-  var options = buildOptionsAsJSON(canvas);
+  let options = buildOptionsAsJSON(canvas);
 
   // Clear canvas
   clearCanvas(options);
 
-  for (var i = 0; i < gauges.length; i++) {
+  for (let i = 0; i < gauges.length; i++) {
     // TODO: Fix this ugliness
     if (i == 0) {
       options.center.X = canvas.width / 4;
@@ -556,7 +555,7 @@ function draw()
       options.center.X = 3 * (canvas.width / 4);
     }
 
-    var gauge = gauges[i];
+    let gauge = gauges[i];
     drawGauge(gauge, options);
   }
 }

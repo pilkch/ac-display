@@ -1,12 +1,9 @@
-/*jslint plusplus: true, sloppy: true, indent: 2 */
-(function () {
-  "use strict";
-}());
+/*eslint strict: ["error", "global"]*/
 
 function openFullscreen()
 {
   // Get an element to show fullscreen (We just use the whole document)
-  var fullscreenElement = document.documentElement;
+  let fullscreenElement = document.documentElement;
 
   if (fullscreenElement.requestFullscreen) {
     fullscreenElement.requestFullscreen();
