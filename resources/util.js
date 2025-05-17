@@ -2,11 +2,10 @@
 
 "use strict";
 
-
 function openFullscreen()
 {
   // Get an element to show fullscreen (We just use the whole document)
-  var fullscreenElement = document.documentElement;
+  let fullscreenElement = document.documentElement;
 
   if (fullscreenElement.requestFullscreen) {
     fullscreenElement.requestFullscreen();
