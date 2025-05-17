@@ -1,4 +1,4 @@
-'use strict';
+/*eslint strict: ["error", "global"]*/
 
 import { updateGaugeConfig, drawGaugesWithValues } from './dial.js'; 
 
@@ -118,10 +118,10 @@ function gear_index_to_letter(gear)
   return gear - 1;
 }
 
-var rpm_red_line = 5000.0;
-var rpm_maximum = 6000.0;
-var speedometer_red_line_kph = 280.0;
-var speedometer_maximum_kph = 300.0;
+let rpm_red_line = 5000.0;
+let rpm_maximum = 6000.0;
+let speedometer_red_line_kph = 280.0;
+let speedometer_maximum_kph = 300.0;
 
 // This is the event when the socket has received a message.
 // This will parse the message and execute the corresponding command (or add the message).
@@ -233,15 +233,15 @@ function socket_onmessage(event)
 
 function showErrorDisconnected()
 {
-  var errorElement = document.getElementById("errordiv");
+  let errorElement = document.getElementById("errordiv");
   errorElement.style.display = 'block';
 
-  var messageElement = document.getElementById("error");
+  let messageElement = document.getElementById("error");
   messageElement.innerHTML = "Disconnected";
 }
 
 function hideError()
 {
-  var errorElement = document.getElementById("errordiv");
+  let errorElement = document.getElementById("errordiv");
   errorElement.style.display = 'none';
 }
